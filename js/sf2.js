@@ -15,7 +15,7 @@ const G = {
 const ADDITIVE = new Set([G.pan, G.delayVolEnv, G.attackVolEnv, G.holdVolEnv, G.decayVolEnv, G.sustainVolEnv,
   G.releaseVolEnv, G.initialAttenuation, G.coarseTune, G.fineTune, G.scaleTuning]);
 
-const MAX_VOICES = 64;
+const SF2_MAX_VOICES = 64;
 
 function readString(dv, off, len) {
   let s = '';
@@ -244,7 +244,7 @@ export class SF2Player {
         started.push(voice);
       }
     }
-    while (this.voices.length > MAX_VOICES) this._release(this.voices.shift(), ctx.currentTime, true);
+    while (this.voices.length > SF2_MAX_VOICES) this._release(this.voices.shift(), ctx.currentTime, true);
     if (dur !== null) for (const v of started) this._release(v, when + dur);
   }
 
