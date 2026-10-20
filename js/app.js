@@ -11,7 +11,7 @@ import { detectChord, chordName, NOTE_NAMES } from './chord.js';
 import { t } from './i18n.js';
 import * as store from './store.js';
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.2.1';
 
 // GM programs to prefer for each built-in voice name when an SF2 is loaded.
 const GM_FOR = { piano: 0, organ: 16, accordion: 21, oud: 24, tambour: 105, strings: 48, brass: 61, sax: 65, flute: 73, bass: 33, lead: 81 };
@@ -43,7 +43,13 @@ function boot() {
   $('gateBtn').addEventListener('click', startAudio, { once: true });
   $('langBtn').addEventListener('click', () => { settings.lang = settings.lang === 'ar' ? 'en' : 'ar'; persist(); applyLang(); renderAll(); });
   $('version').textContent = VERSION;
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  $('gateVersion').textContent = 'v' + VERSION;
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    // A new build takes over as soon as it is installed: reload once so the phone never shows a stale version.
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (navigator.serviceWorker.controller && !reloading) { reloading = true; location.reload(); } });
+    navigator.serviceWorker.register('sw.js').then((reg) => { reg.update().catch(() => {}); }).catch(() => {});
+  }
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; renderInstall(); });
   window.addEventListener('appinstalled', () => { deferredInstall = null; renderInstall(); });
   for (const id of ['installBtn', 'installBtn2']) $(id).addEventListener('click', install);

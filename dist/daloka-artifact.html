@@ -159,6 +159,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); min-height: 32px; 
       <h1 data-i18n="app">Daloka</h1>
       <p data-i18n="subtitle">Sudanese arranger keyboard</p>
       <button id="gateBtn" class="btn big" data-i18n="tapToStart">Tap to start</button>
+      <p class="muted" id="gateVersion"></p>
     </div>
   </div>
 
@@ -2007,7 +2008,7 @@ function t(lang, key) {
 
 
 
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 
 // GM programs to prefer for each built-in voice name when an SF2 is loaded.
 const GM_FOR = { piano: 0, organ: 16, accordion: 21, oud: 24, tambour: 105, strings: 48, brass: 61, sax: 65, flute: 73, bass: 33, lead: 81 };
@@ -2039,7 +2040,13 @@ function boot() {
   $('gateBtn').addEventListener('click', startAudio, { once: true });
   $('langBtn').addEventListener('click', () => { settings.lang = settings.lang === 'ar' ? 'en' : 'ar'; persist(); applyLang(); renderAll(); });
   $('version').textContent = VERSION;
-  if (false) navigator.serviceWorker.register('sw.js').catch(() => {});
+  $('gateVersion').textContent = 'v' + VERSION;
+  if (false) {
+    // A new build takes over as soon as it is installed: reload once so the phone never shows a stale version.
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (navigator.serviceWorker.controller && !reloading) { reloading = true; location.reload(); } });
+    navigator.serviceWorker.register('sw.js').then((reg) => { reg.update().catch(() => {}); }).catch(() => {});
+  }
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; renderInstall(); });
   window.addEventListener('appinstalled', () => { deferredInstall = null; renderInstall(); });
   for (const id of ['installBtn', 'installBtn2']) $(id).addEventListener('click', install);
