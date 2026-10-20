@@ -5,7 +5,7 @@
 
 import { transposeNote } from './chord.js';
 
-const LOOKAHEAD = 0.12;      // seconds scheduled ahead of the clock
+const LOOKAHEAD = 0.2;       // seconds scheduled ahead of the clock (a busy UI frame must not starve a bar)
 const TICK_MS = 25;          // scheduler timer period
 
 export class Sequencer {

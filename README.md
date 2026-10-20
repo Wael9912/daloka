@@ -4,8 +4,9 @@
 
 - **Sound module:** a built-in synth (oud, tambour, accordion, sax, strings, brass, piano, organ, bass, lead, flute) and a Sudanese percussion kit; import any `.sf2` sound bank for real sampled instruments.
 - **Arranger:** the left hand (below the split point) plays chords; drums, percussion, bass, chord and pad parts follow them.
-- **Sudanese styles:** Tum Tum, Daloka, Sayra, Haqiba, Mardoum. **Western:** Pop, Rock, Ballad, Reggae, 6/8. Each has intro, main A/B, fill A/B, ending.
-- **Live controls:** start/stop, sync start, fill, variation, tempo, transpose, split point, eight saved setups.
+- **Sudanese set:** Tum Tum (6/8), Daloka · Sayra (4/4), Mardoum (6/8), Jarari (6/8), Karachi (2/4), Dalib, Haqiba — built from published descriptions of each rhythm (`docs/CONTENT.md` has the sources). **Western:** Pop, Rock, Ballad, Reggae, Slow 6/8. Each has intro, main A/B, fill, ending.
+- **Live controls:** start/stop, start-with-first-chord, fill, A/B, tempo (dotted-quarter display for 6/8), transpose, split point, eight saved setups.
+- **Stays up on stage:** the screen stays on while the app is open (Wake Lock), the sequencer clock runs in a Worker so Chrome's timer throttling cannot stall a bar, and audio/MIDI/wake lock re-arm when you switch back to the app.
 - **Open content:** import your own `.sf2` banks and style packs (`.json`); export the built-in styles to edit them.
 - **Arabic (RTL) and English.**
 
@@ -13,7 +14,7 @@
 
 Web MIDI and the install prompt need a secure page (HTTPS, or `localhost`). Three ways:
 
-1. **Hosted (easiest):** open the GitHub Pages URL of this repo in **Chrome**, tap ⋮ → *Add to Home screen*. Plug the keyboard in with a USB OTG cable, open the app, tap **Connect keyboard**.
+1. **Hosted (easiest):** open **https://wael9912.github.io/daloka/** in **Chrome**, tap **Install app** in the top bar (or ⋮ → *Install app* / *Add to Home screen*). Plug the keyboard in with a USB OTG cable, open the app, tap **Connect keyboard**.
 2. **From your Mac on the same Wi-Fi, over HTTPS:** run `./serve.sh https` (needs `mkcert` once), then open `https://<mac-ip>:8443` on the phone and accept the certificate.
 3. **USB cable + adb:** `adb reverse tcp:8787 tcp:8787`, then `./serve.sh` on the Mac and open `http://localhost:8787` on the phone (localhost counts as secure).
 
@@ -25,10 +26,10 @@ Without a keyboard the on-screen keys work everywhere (touch, multi-finger). On 
 | --- | --- |
 | Left of the split (default F#3) | Chord zone. Fingered: play the chord. One finger: root = major, root + white key below = 7th, root + black key below = minor. |
 | Right of the split | Upper voice (+ Layer adds the lower voice on top). |
-| **SYNC START** | The style starts on the next chord you play. |
+| **Start with first chord** | The rhythm starts on the next chord you play. |
 | **FILL** | Plays the fill of the current variation on the next bar, then returns. |
-| **MAIN A / B** | Switches variation through a fill. |
-| **ENDING** | Plays the ending on the next bar and stops. |
+| **A / B** | Switches variation through a fill. |
+| **END** | Plays the ending on the next bar and stops. |
 | Setups 1–8 | Tap to load, hold to save the whole setup (style, tempo, voices, split, mixer). |
 
 ## Sound banks
@@ -49,7 +50,7 @@ A style pack is a JSON array of styles. Export the built-in pack from ⚙ → *E
 }
 ```
 
-Drum letters: `K` kick, `D` dum, `T` tak, `L` tabl low, `H` tabl high, `C` clap, `S` shaker, `O` open hat, `R` rim, `B` bell, `Z` crash, `M` tom. `x` hit, `X` accent, `o` soft. Pitched tokens: `C2`, `C3+E3+G3` (chord), `C2:4` (4 steps long), `.` rest, `-` tie, `!` accent, `?` soft.
+Drum letters: `D` dum, `T` tak, `M` mambo (the three bangaz), `K` kick, `A` snare, `L`/`H` nugara low/high, `C` clap, `J` shaker, `W` shatam sticks, `R` riq, `S` hat, `O` open hat, `B` bell, `Z` crash, `N` tom. `x` hit, `X` accent, `o` soft. Pitched tokens: `C2`, `C3+E3+G3` (chord), `C2:4` (4 steps long), `.` rest, `-` tie, `!` accent, `?` soft.
 
 Validate a pack from the command line:
 
@@ -61,7 +62,7 @@ node tools/style_lint.mjs my-pack.json
 
 ```
 ./serve.sh            # http://localhost:8787
-node tests/run.mjs    # engine tests: chord detection ×12 keys, DSL, sequencer, 10,000-bar drift
+node tests/run.mjs    # engine tests: chord detection ×12 keys, DSL, the Sudanese set's metres and strokes, sequencer, 10,000-bar drift
 ```
 
 Files: `index.html`, `css/app.css`, `js/` (`app.js` UI · `engine.js` routing · `synth.js` built-in sounds · `sf2.js` SoundFont loader · `sequencer.js` · `chord.js` · `styledsl.js` · `styles.js` · `midi.js` · `audio.js` · `store.js` · `i18n.js`), `sw.js` + `manifest.webmanifest` (PWA).

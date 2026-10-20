@@ -3,7 +3,7 @@
 
 export function createAudio() {
   const AC = window.AudioContext || window.webkitAudioContext;
-  const ctx = new AC({ latencyHint: 'interactive', sampleRate: 48000 });
+  const ctx = new AC({ latencyHint: 'interactive' }); // native sample rate: a forced rate adds a resampler and latency on Android
   const master = ctx.createGain();
   master.gain.value = 0.9;
   const limiter = ctx.createDynamicsCompressor();

@@ -52,10 +52,36 @@ eq(noteNumber('A0'), 21, 'A0 = 21');
 eq(noteNumber('Bb2'), 46, 'Bb2 = 46');
 const problems = lintPack(STYLE_PACK);
 eq(problems, [], 'built-in pack lints clean');
-eq(STYLE_PACK.length, 10, 'ten built-in styles');
-const tum = compileStyle(STYLE_PACK[0]);
-eq(tum.parts.mainA.beats, 8, 'Tum Tum main A = 2 bars of 4');
-ok(tum.parts.mainA.events.some((e) => e.track === 'drums' && e.n === 36 && e.t === 0), 'kick on beat 1');
+eq(STYLE_PACK.length, 12, 'twelve built-in styles');
+eq(STYLE_PACK.filter((s) => s.group === 'sudan').map((s) => s.id), ['tumtum', 'daloka', 'mardoum', 'jarari', 'karachi', 'dalib', 'haqiba'], 'the Sudanese set, in keyboard order');
+ok(STYLE_PACK.every((s) => s.group === 'sudan' || s.group === 'west'), 'every style has a group');
+const byId = (id) => compileStyle(STYLE_PACK.find((s) => s.id === id));
+// Tum Tum: a triple rhythm — dum tak dum, two on the mambo — with claps in 3 against the 2 (the 3:2 cross-rhythm).
+const tumtum = byId('tumtum');
+eq(tumtum.meter, [6, 8], 'Tum Tum is 6/8');
+eq(tumtum.parts.mainA.beats, 6, 'Tum Tum main A = 2 bars of 6/8');
+const bar1 = (st, drum) => st.parts.mainA.events.filter((e) => e.n === drum && e.t < st.beatsPerBar).map((e) => +e.t.toFixed(3));
+eq(bar1(tumtum, 63), [0, 1], 'tum tum: dum on 1 and 3 (eighths)');
+eq(bar1(tumtum, 60), [0.5], 'tum tum: tak on the 2nd eighth');
+eq(bar1(tumtum, 64), [1.5, 2], 'tum tum: two mambo strokes after dum tak dum');
+eq(bar1(tumtum, 39), [0, 1, 2], 'tum tum: three claps per bar against the two-pulse drum');
+// Mardoum / Jarari are 6/8 (fast / slow); Jarari is the softer one.
+eq(byId('mardoum').meter, [6, 8], 'Mardoum is 6/8');
+eq(byId('jarari').meter, [6, 8], 'Jarari is 6/8');
+ok(byId('mardoum').tempo > byId('jarari').tempo + 30, 'Mardoum is much faster than Jarari');
+// Karachi: 2/4, starts on TAK (tak-tak-dum), not on dum.
+const karachi = byId('karachi');
+eq(karachi.meter, [2, 4], 'Karachi is 2/4');
+eq(bar1(karachi, 60), [0, 0.5], 'karachi: tak tak');
+eq(bar1(karachi, 63), [1], 'karachi: then dum');
+// Daloka / Sayra: 4/4 with the mambo on 1 and 3 and claps on 2 and 4.
+const daloka = byId('daloka');
+eq(daloka.meter, [4, 4], 'Daloka is 4/4');
+eq(bar1(daloka, 64), [0, 2], 'daloka: mambo on 1 and 3');
+eq(bar1(daloka, 39), [1, 3], 'daloka: claps on 2 and 4');
+const tum = daloka;                      // 4/4 style for the sequencer tests below
+const pop = byId('pop');
+ok(pop.parts.mainA.events.some((e) => e.track === 'drums' && e.n === 36 && e.t === 0), 'pop: kick on beat 1');
 ok(tum.parts.mainA.events.every((e) => e.t < 8), 'no event past part end');
 const six = compileStyle(STYLE_PACK.find((s) => s.id === 'six8'));
 eq(six.beatsPerBar, 3, '6/8 = 3 quarter beats per bar');
@@ -99,7 +125,7 @@ function makeSeq() {
 {
   // Drift: 10,000 bars of main A chained by arithmetic must land exactly on bar boundaries.
   const { seq, played, advance } = makeSeq();
-  seq.setStyle(tum);
+  seq.setStyle(pop);
   seq.setTempo(240);               // 1 s per bar
   seq.start();
   const total = 10000;

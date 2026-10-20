@@ -18,19 +18,24 @@
 // where t and d are in quarter-note beats from the start of the part.
 
 export const DRUM_NOTES = {
-  // GM-ish mapping used by both the built-in kit and SF2 drum kits (channel 10).
+  // GM kit numbers, so an imported GM SoundFont (bank 128) plays the right sound;
+  // the built-in kit (synth.js) synthesises the same numbers.
+  D: 63,   // daloka / bangaz "dum"   (GM open high conga)
+  T: 60,   // daloka / bangaz "tak"   (GM high bongo)
+  M: 64,   // mambo, the big bangaz   (GM low conga)
   K: 36,   // kick / tum-tum deep drum
-  D: 38,   // daloka "dum" (open drum tone) — GM snare slot
-  T: 40,   // daloka "tak" (rim/edge tone) — GM electric snare slot
-  L: 41,   // tabl low
-  H: 48,   // tabl high
-  C: 39,   // hand clap
-  S: 42,   // shaker / closed hat
+  A: 38,   // snare
+  L: 41,   // nugara / tabl low       (GM low floor tom)
+  H: 48,   // nugara / tabl high      (GM hi-mid tom)
+  C: 39,   // hand clap (الصفقة)
+  J: 70,   // shaker / kashkoush      (GM maracas)
+  W: 76,   // shatam sticks           (GM hi wood block)
+  R: 54,   // riq                     (GM tambourine)
+  S: 42,   // closed hat
   O: 46,   // open hat
-  R: 37,   // rim / tik
   B: 56,   // cowbell / bell
   Z: 49,   // crash
-  M: 45,   // mid tom
+  N: 45,   // tom
 };
 
 const NOTE_RE = /^([A-Ga-g])([#b]?)(-?\d)$/;
@@ -112,6 +117,7 @@ export function compileStyle(src) {
     voices: src.voices || {},
     tracks: src.tracks,
     parts: {},
+    group: src.group || 'west',
     source: src,
   };
   for (const partName of ['intro', 'mainA', 'mainB', 'fillA', 'fillB', 'ending']) {

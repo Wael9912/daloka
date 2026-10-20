@@ -5,17 +5,17 @@ export const SYNTH_PRESETS = {
   lead:      { label: 'Synth lead',  label_ar: 'ليد',     osc: [['sawtooth', 0], ['sawtooth', 8]],              cutoff: 2600, q: 2,   a: 0.01, d: 0.25, s: 0.7,  r: 0.15, fenv: 1800, vib: 5.5, vibDepth: 6,  level: 0.35 },
   oud:       { label: 'Oud',         label_ar: 'عود',     osc: [['triangle', 0], ['sawtooth', -3]],             cutoff: 2800, q: 1,   a: 0.003, d: 0.9, s: 0.0,  r: 0.12, fenv: 3500, vib: 0,   vibDepth: 0,  level: 0.5, pluck: true },
   tambour:   { label: 'Rababa / Tambour', label_ar: 'طمبور', osc: [['sawtooth', 0], ['square', 5]],           cutoff: 1600, q: 3,   a: 0.004, d: 1.1, s: 0.0,  r: 0.15, fenv: 2500, vib: 0,   vibDepth: 0,  level: 0.42, pluck: true },
-  accordion: { label: 'Accordion',   label_ar: 'أكورديون', osc: [['square', 0], ['sawtooth', 4], ['square', -4]], cutoff: 3200, q: 0.7, a: 0.05, d: 0.1, s: 1.0, r: 0.12, fenv: 400,  vib: 5.2, vibDepth: 5,  level: 0.22 },
-  sax:       { label: 'Sax',         label_ar: 'ساكس',    osc: [['sawtooth', 0], ['sawtooth', 3]],              cutoff: 1500, q: 3,   a: 0.07, d: 0.3, s: 0.85, r: 0.18, fenv: 2600, vib: 5,   vibDepth: 8,  level: 0.33 },
-  strings:   { label: 'Strings',     label_ar: 'وتريات',  osc: [['sawtooth', -7], ['sawtooth', 0], ['sawtooth', 7]], cutoff: 2200, q: 0.5, a: 0.35, d: 0.3, s: 0.9, r: 0.7, fenv: 600, vib: 4.5, vibDepth: 4, level: 0.2 },
-  brass:     { label: 'Brass',       label_ar: 'نفخ',     osc: [['sawtooth', 0], ['sawtooth', 6]],              cutoff: 1800, q: 2.5, a: 0.06, d: 0.3, s: 0.8,  r: 0.15, fenv: 3000, vib: 0,   vibDepth: 0,  level: 0.3 },
+  accordion: { label: 'Accordion',   label_ar: 'أكورديون', osc: [['square', 0], ['sawtooth', 4], ['square', -4]], cutoff: 3200, q: 0.7, a: 0.025, d: 0.1, s: 1.0, r: 0.1, fenv: 400,  vib: 5.2, vibDepth: 5,  level: 0.22 },
+  sax:       { label: 'Sax',         label_ar: 'ساكس',    osc: [['sawtooth', 0], ['sawtooth', 3]],              cutoff: 1500, q: 3,   a: 0.035, d: 0.3, s: 0.85, r: 0.15, fenv: 2600, vib: 5,   vibDepth: 8,  level: 0.33 },
+  strings:   { label: 'Strings',     label_ar: 'وتريات',  osc: [['sawtooth', -7], ['sawtooth', 0], ['sawtooth', 7]], cutoff: 2200, q: 0.5, a: 0.12, d: 0.3, s: 0.9, r: 0.5, fenv: 600, vib: 4.5, vibDepth: 4, level: 0.2 },
+  brass:     { label: 'Brass',       label_ar: 'نفخ',     osc: [['sawtooth', 0], ['sawtooth', 6]],              cutoff: 1800, q: 2.5, a: 0.03, d: 0.3, s: 0.8,  r: 0.14, fenv: 3000, vib: 0,   vibDepth: 0,  level: 0.3 },
   piano:     { label: 'Piano',       label_ar: 'بيانو',   osc: [['triangle', 0], ['sine', 0.5]],                cutoff: 4500, q: 0.5, a: 0.003, d: 1.6, s: 0.15, r: 0.25, fenv: 3000, vib: 0,   vibDepth: 0,  level: 0.5, pluck: true },
   organ:     { label: 'Organ',       label_ar: 'أورغ',    osc: [['sine', 0], ['sine', 1200], ['sine', 1902], ['sine', 2400]], cutoff: 6000, q: 0.3, a: 0.01, d: 0.05, s: 1.0, r: 0.06, fenv: 0, vib: 0, vibDepth: 0, level: 0.22, organ: true },
   bass:      { label: 'Bass',        label_ar: 'باص',     osc: [['sine', 0], ['sawtooth', 0]],                  cutoff: 700,  q: 1.5, a: 0.005, d: 0.35, s: 0.6, r: 0.08, fenv: 900,  vib: 0,   vibDepth: 0,  level: 0.55 },
-  flute:     { label: 'Flute',       label_ar: 'ناي',     osc: [['sine', 0], ['triangle', 0]],                  cutoff: 3000, q: 1,   a: 0.08, d: 0.2, s: 0.9,  r: 0.2,  fenv: 500,  vib: 5,   vibDepth: 10, level: 0.4 },
+  flute:     { label: 'Flute',       label_ar: 'ناي',     osc: [['sine', 0], ['triangle', 0]],                  cutoff: 3000, q: 1,   a: 0.04, d: 0.2, s: 0.9,  r: 0.18, fenv: 500,  vib: 5,   vibDepth: 10, level: 0.4 },
 };
 
-const MAX_VOICES = 40;
+const MAX_VOICES = 28;   // phones: fewer, cleaner voices beat a stuttering mix
 
 function mtof(n) { return 440 * Math.pow(2, (n - 69) / 12); }
 
@@ -84,7 +84,7 @@ export class Synth {
     });
     filter.connect(amp).connect(dest);
 
-    const peak = preset.level * (0.3 + 0.7 * v * v);
+    const peak = preset.level * (0.35 + 0.65 * v);   // soft keys still speak
     const g = amp.gain;
     g.setValueAtTime(0.0001, when);
     g.linearRampToValueAtTime(peak, when + preset.a);
@@ -151,20 +151,35 @@ export class Synth {
     const v = Math.max(0.1, vel / 127);
     const dest = this.routeFor(ch);
     switch (note) {
-      case 36: return this._kick(dest, when, v, 150, 48, 0.45);        // tum-tum kick
-      case 38: return this._membrane(dest, when, v, 210, 0.28, 0.35);  // daloka dum
-      case 40: return this._tak(dest, when, v, 1400, 0.09);           // daloka tak
-      case 41: return this._membrane(dest, when, v, 120, 0.35, 0.5);   // tabl low
-      case 48: return this._membrane(dest, when, v, 320, 0.18, 0.5);   // tabl high
-      case 45: return this._membrane(dest, when, v, 170, 0.3, 0.45);   // mid tom
+      case 36: return this._kick(dest, when, v, 150, 48, 0.45);        // kick / tum-tum deep drum
+      case 38: return this._snare(dest, when, v);                      // snare
+      case 63: return this._membrane(dest, when, v, 215, 0.26, 0.35);  // daloka / bangaz dum
+      case 60: return this._tak(dest, when, v, 1500, 0.08);            // daloka / bangaz tak
+      case 64: return this._membrane(dest, when, v, 105, 0.42, 0.3);   // mambo (big bangaz)
+      case 41: return this._membrane(dest, when, v, 120, 0.35, 0.5);   // nugara / tabl low
+      case 48: return this._membrane(dest, when, v, 320, 0.18, 0.5);   // nugara / tabl high
+      case 45: return this._membrane(dest, when, v, 170, 0.3, 0.45);   // tom
       case 39: return this._clap(dest, when, v);
-      case 42: return this._shaker(dest, when, v, 0.06, 7000);
-      case 46: return this._shaker(dest, when, v, 0.35, 6000);
-      case 37: return this._tak(dest, when, v, 2600, 0.05);            // rim / tik
+      case 70: return this._shaker(dest, when, v, 0.05, 8000);         // kashkoush / maracas
+      case 42: return this._shaker(dest, when, v, 0.06, 7000);         // closed hat
+      case 46: return this._shaker(dest, when, v, 0.35, 6000);         // open hat
+      case 76: return this._tak(dest, when, v, 2300, 0.04);            // shatam sticks / wood block
+      case 54: return this._tambourine(dest, when, v);                 // riq
+      case 37: return this._tak(dest, when, v, 2600, 0.05);            // rim
       case 56: return this._bell(dest, when, v);
       case 49: return this._shaker(dest, when, v, 1.2, 4000);          // crash
       default: return this._membrane(dest, when, v, 180, 0.2, 0.4);
     }
+  }
+
+  _snare(dest, when, v) {
+    this._membrane(dest, when, v * 0.8, 190, 0.12, 0.2);
+    this._noiseBurst(dest, when, 0.7 * v, 0.16, 1800, 'highpass', 0.7);
+  }
+
+  _tambourine(dest, when, v) {
+    this._noiseBurst(dest, when, 0.45 * v, 0.1, 6500, 'highpass', 0.7);
+    this._noiseBurst(dest, when + 0.02, 0.25 * v, 0.12, 9000, 'bandpass', 3);
   }
 
   _kick(dest, when, v, f0, f1, dur) {

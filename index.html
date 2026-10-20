@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#14110f">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Daloka">
   <title>Daloka</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
@@ -18,7 +19,7 @@
       <img src="icons/icon-192.png" alt="" width="72" height="72">
       <h1 data-i18n="app">Daloka</h1>
       <p data-i18n="subtitle">Sudanese arranger keyboard</p>
-      <button id="gateBtn" class="btn big" data-i18n="tapToStart">Tap to start audio</button>
+      <button id="gateBtn" class="btn big" data-i18n="tapToStart">Tap to start</button>
     </div>
   </div>
 
@@ -26,74 +27,91 @@
     <div class="brand"><span data-i18n="app">Daloka</span></div>
     <div class="top-right">
       <button id="midiBtn" class="chip" title="MIDI"><span class="dot"></span><span id="midiLabel" data-i18n="midiNone">No keyboard</span></button>
+      <button id="installBtn" class="chip accent" data-i18n="install" hidden>Install app</button>
       <button id="langBtn" class="chip" data-i18n="language">العربية</button>
       <button id="settingsBtn" class="chip" aria-label="Settings">⚙</button>
     </div>
   </header>
 
   <main class="perf">
-    <section class="row styles-row">
-      <div id="styleChips" class="chips"></div>
+    <section class="row rhythms">
+      <div class="grp"><label data-i18n="sudanese">Sudanese</label><div id="sudanChips" class="chips"></div></div>
+      <div class="grp"><label data-i18n="western">Western</label><div id="westChips" class="chips"></div></div>
     </section>
 
-    <section class="row status-row">
-      <div class="stat">
-        <label data-i18n="tempo">Tempo</label>
-        <div class="stepper"><button data-act="tempo-" class="btn sq">−</button><output id="tempoVal">120</output><button data-act="tempo+" class="btn sq">+</button></div>
+    <section class="row transport">
+      <button id="startBtn" class="btn start" data-i18n="start">START</button>
+      <div class="parts">
+        <button id="introBtn" class="btn part" data-i18n="intro">INTRO</button>
+        <button id="mainABtn" class="btn part" data-i18n="mainA">A</button>
+        <button id="mainBBtn" class="btn part" data-i18n="mainB">B</button>
+        <button id="fillBtn" class="btn part" data-i18n="fill">FILL</button>
+        <button id="endingBtn" class="btn part" data-i18n="ending">END</button>
       </div>
-      <div class="stat">
-        <label data-i18n="transpose">Transpose</label>
-        <div class="stepper"><button data-act="trans-" class="btn sq">−</button><output id="transVal">0</output><button data-act="trans+" class="btn sq">+</button></div>
+      <div class="tline">
+        <div class="stat">
+          <label data-i18n="tempo">Tempo</label>
+          <div class="stepper"><button data-act="tempo-" class="btn sq">−</button><output id="tempoVal">120</output><button data-act="tempo+" class="btn sq">+</button></div>
+        </div>
+        <div class="beat" id="beat"><i></i><i></i><i></i><i></i></div>
+        <button id="syncBtn" class="btn tog small" data-i18n="sync">Start with first chord</button>
       </div>
-      <div class="stat">
-        <label data-i18n="split">Split</label>
-        <div class="stepper"><button data-act="split-" class="btn sq">−</button><output id="splitVal">F#3</output><button data-act="split+" class="btn sq">+</button></div>
+    </section>
+
+    <section class="row hands">
+      <div class="voice">
+        <label data-i18n="voice">Right-hand sound</label>
+        <select id="upperSel"></select>
       </div>
       <div class="stat chord-stat">
         <label data-i18n="chord">Chord</label>
         <output id="chordVal">—</output>
       </div>
-      <div class="beat" id="beat"><i></i><i></i><i></i><i></i></div>
-    </section>
-
-    <section class="row transport">
-      <button id="introBtn" class="btn part" data-i18n="intro">INTRO</button>
-      <button id="mainABtn" class="btn part" data-i18n="mainA">MAIN A</button>
-      <button id="mainBBtn" class="btn part" data-i18n="mainB">MAIN B</button>
-      <button id="fillBtn" class="btn part" data-i18n="fill">FILL</button>
-      <button id="endingBtn" class="btn part" data-i18n="ending">ENDING</button>
-      <button id="syncBtn" class="btn part" data-i18n="sync">SYNC START</button>
-      <button id="startBtn" class="btn start" data-i18n="start">START</button>
-    </section>
-
-    <section class="row voices">
-      <div class="voice">
-        <label data-i18n="upper">Upper</label>
-        <select id="upperSel"></select>
+      <div class="stat">
+        <label data-i18n="transpose">Transpose</label>
+        <div class="stepper"><button data-act="trans-" class="btn sq">−</button><output id="transVal">0</output><button data-act="trans+" class="btn sq">+</button></div>
       </div>
-      <div class="voice">
-        <label data-i18n="lower">Lower</label>
-        <select id="lowerSel"></select>
-      </div>
-      <button id="lowerOnBtn" class="btn tog" data-i18n="lowerOn">Lower voice on</button>
-      <button id="layerBtn" class="btn tog" data-i18n="layer">Layer</button>
-      <button id="chordModeBtn" class="btn tog on" data-i18n="fingered">Fingered</button>
-      <button id="panicBtn" class="btn tog" data-i18n="panic">All notes off</button>
+      <button id="chordModeBtn" class="btn tog small" data-i18n="fingered">Full chords</button>
     </section>
 
-    <section class="row regs">
-      <label data-i18n="registrations">Setups</label>
-      <div id="regBtns" class="regbtns"></div>
-      <small data-i18n="holdToSave">Hold a slot to save the current setup</small>
-    </section>
+    <details class="row more" id="more">
+      <summary data-i18n="more">More</summary>
+      <div class="more-body">
+        <div class="stat">
+          <label data-i18n="split">Split point</label>
+          <div class="stepper"><button data-act="split-" class="btn sq">−</button><output id="splitVal">F#3</output><button data-act="split+" class="btn sq">+</button></div>
+        </div>
+        <div class="voice">
+          <label data-i18n="lower">Left-hand sound</label>
+          <select id="lowerSel"></select>
+        </div>
+        <button id="lowerOnBtn" class="btn tog" data-i18n="lowerOn">Left hand also sounds</button>
+        <button id="layerBtn" class="btn tog" data-i18n="layer">Layer two sounds</button>
+        <button id="panicBtn" class="btn tog" data-i18n="panic">All notes off</button>
+        <button id="keysToggle" class="btn tog" data-i18n="hideKeys">Hide keys</button>
+        <div class="regs">
+          <label data-i18n="registrations">Setups</label>
+          <div id="regBtns" class="regbtns"></div>
+          <small data-i18n="holdToSave">Tap a slot to load, hold it to save</small>
+        </div>
+      </div>
+    </details>
 
     <section class="row keys-row">
-      <button id="keysToggle" class="btn tog" data-i18n="hideKeys">Hide keys</button>
       <div id="keyboard" class="keyboard"></div>
+      <small class="hint" data-i18n="hint">Left of the red line: play a chord, the rhythm follows it. Right of it: melody.</small>
     </section>
   </main>
 
   <div id="toast" class="toast" hidden></div>
+
+  <dialog id="installHelp" class="sheet small">
+    <div class="sheet-head"><h2 data-i18n="installHelpTitle">Install Daloka as an app</h2><button id="closeInstallHelp" class="chip">✕</button></div>
+    <div class="sheet-body">
+      <p data-i18n="installHelp"></p>
+      <p class="muted" data-i18n="installIos"></p>
+    </div>
+  </dialog>
 
   <dialog id="settings" class="sheet">
     <div class="sheet-head">
@@ -130,12 +148,13 @@
       <h3 data-i18n="midi">MIDI</h3>
       <p id="midiInfo" class="muted"></p>
       <p class="muted"><span data-i18n="latency">Audio latency</span>: <span id="latencyVal">–</span> ms</p>
+      <div class="actions"><button id="awakeBtn" class="btn tog on" data-i18n="keepAwake">Keep the screen on</button></div>
 
       <h3 data-i18n="about">About</h3>
       <p class="muted" data-i18n="aboutText"></p>
       <div class="actions">
-        <button id="installBtn" class="btn" data-i18n="install" hidden>Install app</button>
-        <a class="btn" href="https://github.com/" id="repoLink" target="_blank" rel="noopener">GitHub</a>
+        <button id="installBtn2" class="btn" data-i18n="install">Install app</button>
+        <a class="btn" href="https://github.com/Wael9912/daloka" id="repoLink" target="_blank" rel="noopener">GitHub</a>
       </div>
       <p class="muted">v<span id="version"></span></p>
     </div>

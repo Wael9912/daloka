@@ -11,7 +11,7 @@ import { detectChord, chordName, NOTE_NAMES } from './chord.js';
 import { t } from './i18n.js';
 import * as store from './store.js';
 
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
 
 // GM programs to prefer for each built-in voice name when an SF2 is loaded.
 const GM_FOR = { piano: 0, organ: 16, accordion: 21, oud: 24, tambour: 105, strings: 48, brass: 61, sax: 65, flute: 73, bass: 33, lead: 81 };
@@ -22,7 +22,7 @@ const $ = (id) => document.getElementById(id);
 const settings = Object.assign({
   lang: (navigator.language || '').startsWith('ar') ? 'ar' : 'en',
   styleId: 'tumtum', tempo: null, transpose: 0, split: 54, chordMode: 'fingered',
-  lowerOn: false, layer: false, keysShown: true,
+  lowerOn: false, layer: false, keysShown: true, keepAwake: true, seenHint: false,
   programs: {}, bus: { keys: 0.8, style: 0.8, drums: 0.8, master: 0.9 }, mute: {},
   regs: [null, null, null, null, null, null, null, null],
 }, store.loadSettings());
@@ -34,6 +34,8 @@ const held = new Map();          // raw note → channels it sounds on
 const chordNotes = new Set();    // raw notes in the chord zone
 let lastChord = null;
 let deferredInstall = null;
+let wakeLock = null;
+const keyEls = new Map();        // note → on-screen key element
 
 // ───────────────────────── boot ─────────────────────────
 function boot() {
@@ -42,9 +44,56 @@ function boot() {
   $('langBtn').addEventListener('click', () => { settings.lang = settings.lang === 'ar' ? 'en' : 'ar'; persist(); applyLang(); renderAll(); });
   $('version').textContent = VERSION;
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
-  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; $('installBtn').hidden = false; });
-  $('installBtn').addEventListener('click', async () => { if (!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; $('installBtn').hidden = true; });
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; renderInstall(); });
+  window.addEventListener('appinstalled', () => { deferredInstall = null; renderInstall(); });
+  for (const id of ['installBtn', 'installBtn2']) $(id).addEventListener('click', install);
+  $('closeInstallHelp').addEventListener('click', () => $('installHelp').close());
+  renderInstall();
 }
+
+function isStandalone() { return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true; }
+
+function renderInstall() {
+  const standalone = isStandalone();
+  $('installBtn').hidden = standalone || location.protocol === 'file:';
+  $('installBtn2').hidden = standalone;
+  $('installBtn2').textContent = t(settings.lang, standalone ? 'installed' : 'install');
+}
+
+async function install() {
+  if (deferredInstall) {
+    deferredInstall.prompt();
+    const { outcome } = await deferredInstall.userChoice;
+    if (outcome === 'accepted') deferredInstall = null;
+    renderInstall();
+    return;
+  }
+  $('installHelp').showModal();
+}
+
+// A timer in a Worker keeps ticking when Chrome throttles the page's own timers
+// (screen dim, another app in front); the sequencer only needs a steady nudge.
+function workerTimer() {
+  try {
+    const src = 'let id=null;onmessage=e=>{if(e.data.cmd==="start"){clearInterval(id);id=setInterval(()=>postMessage(1),e.data.ms)}else{clearInterval(id);id=null}}';
+    const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    let cb = null;
+    w.onmessage = () => { if (cb) cb(); };
+    return {
+      setTimer: (fn, ms) => { cb = fn; w.postMessage({ cmd: 'start', ms }); return 1; },
+      clearTimer: () => { cb = null; w.postMessage({ cmd: 'stop' }); },
+    };
+  } catch (_) { return {}; }
+}
+
+async function keepAwake() {
+  if (!settings.keepAwake || wakeLock || !('wakeLock' in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch (_) { wakeLock = null; }
+}
+async function releaseAwake() { try { if (wakeLock) await wakeLock.release(); } catch (_) { /* ignore */ } wakeLock = null; }
 
 async function startAudio() {
   audio = createAudio();
@@ -53,6 +102,7 @@ async function startAudio() {
   seq = new Sequencer({
     clock: { now: () => audio.ctx.currentTime },
     sink: { noteOn: (ch, n, v, t0, d) => engine.noteOn(ch, n, v, t0, d), allOff: () => engine.allOff() },
+    ...workerTimer(),
   });
   seq.on(onSeqEvent);
   for (const [k, v] of Object.entries(settings.bus)) (k === 'master' ? audio.setMaster(v) : audio.setBus(k, v));
@@ -78,14 +128,18 @@ async function startAudio() {
   renderAll();
   $('gate').remove();
   requestAnimationFrame(beatLoop);
-  // Keep the audio context alive when the tab comes back.
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) audio.resume(); });
+  keepAwake();
+  // Coming back from another app: audio context, wake lock and MIDI all need a nudge.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { audio.resume(); keepAwake(); connectMidi(true); } });
+  audio.ctx.addEventListener('statechange', () => { if (audio.ctx.state !== 'running' && !document.hidden) audio.resume(); });
+  document.addEventListener('pointerdown', () => { if (audio.ctx.state !== 'running') audio.resume(); }, { passive: true });
+  if (!settings.seenHint) { toast(t(settings.lang, 'firstHint'), 6000); settings.seenHint = true; persist(); }
 }
 
 async function connectMidi(silent = false) {
-  if (!midi.supported) { if (!silent) toast(t(settings.lang, 'midiUnsupported'), 5000); renderMidi([]); return; }
+  if (!midi.supported) { if (silent !== true) toast(t(settings.lang, 'midiUnsupported'), 5000); renderMidi([]); return; }
   try { renderMidi(await midi.connect()); }
-  catch (err) { if (!silent) toast(`${t(settings.lang, 'error')}: ${err.message}`); renderMidi([]); }
+  catch (err) { if (silent !== true) toast(`${t(settings.lang, 'error')}: ${err.message}`); renderMidi([]); }
 }
 
 async function loadStoredFiles() {
@@ -169,8 +223,9 @@ function noteOn(note, vel) {
     chans.push(CH.upper);
     if (settings.layer) chans.push(CH.lower);
   }
-  for (const ch of chans) engine.noteOn(ch, note + settings.transpose, vel);
-  held.set(note, chans.map((ch) => [ch, note + settings.transpose]));
+  const n = note + settings.transpose;
+  for (const ch of chans) engine.noteOn(ch, n, vel);
+  held.set(note, chans.map((ch) => [ch, n]));
   renderKey(note, true);
 }
 
@@ -186,14 +241,14 @@ function panic() {
   engine.allOff();
   held.clear();
   chordNotes.clear();
-  document.querySelectorAll('.key.on').forEach((k) => k.classList.remove('on'));
+  for (const k of keyEls.values()) k.classList.remove('on');
 }
 
 // ───────────────────────── sequencer events ─────────────────────────
-function onSeqEvent(type) {
+function onSeqEvent(type, data) {
   if (type === 'transport' || type === 'part' || type === 'pending' || type === 'variation' || type === 'sync') renderTransport();
-  if (type === 'chord') renderStatus();
-  if (type === 'tempo') renderStatus();
+  if (type === 'chord' || type === 'tempo') renderStatus();
+  if (type === 'transport' && data && data.playing) keepAwake();
 }
 
 // ───────────────────────── UI binding ─────────────────────────
@@ -213,6 +268,7 @@ function bindUI() {
   $('upperSel').addEventListener('change', (e) => setChannelProgram(CH.upper, e.target.value));
   $('lowerSel').addEventListener('change', (e) => setChannelProgram(CH.lower, e.target.value));
   $('keysToggle').addEventListener('click', () => { settings.keysShown = !settings.keysShown; persist(); renderKeyboard(); });
+  $('awakeBtn').addEventListener('click', () => { settings.keepAwake = !settings.keepAwake; persist(); settings.keepAwake ? keepAwake() : releaseAwake(); renderSettings(); });
 
   $('settingsBtn').addEventListener('click', () => { renderSettings(); $('settings').showModal(); });
   $('closeSettings').addEventListener('click', () => $('settings').close());
@@ -249,8 +305,9 @@ function bindUI() {
 }
 
 function act(a) {
-  if (a === 'tempo+') seq.setTempo(seq.tempo + 2);
-  if (a === 'tempo-') seq.setTempo(seq.tempo - 2);
+  const step = seq.style.meter[1] === 8 ? 3 : 2;   // 6/8: ±2 on the dotted-quarter display
+  if (a === 'tempo+') seq.setTempo(seq.tempo + step);
+  if (a === 'tempo-') seq.setTempo(seq.tempo - step);
   if (a.startsWith('tempo')) settings.tempo = seq.tempo;
   if (a === 'trans+') settings.transpose = Math.min(12, settings.transpose + 1);
   if (a === 'trans-') settings.transpose = Math.max(-12, settings.transpose - 1);
@@ -340,28 +397,33 @@ function applyLang() {
   document.documentElement.lang = lang;
   document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
   document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(lang, el.dataset.i18n); });
+  renderInstall();
 }
 
 function renderAll() { renderStyles(); renderStatus(); renderTransport(); renderVoices(); renderRegs(); renderKeyboard(); }
 
 function renderStyles() {
-  const box = $('styleChips');
-  box.innerHTML = '';
+  const boxes = { sudan: $('sudanChips'), west: $('westChips') };
+  for (const b of Object.values(boxes)) b.innerHTML = '';
   for (const st of styles) {
     const b = document.createElement('button');
     b.className = 'btn' + (st.id === settings.styleId ? ' on' : '');
-    b.innerHTML = `${settings.lang === 'ar' ? st.name_ar : st.name}<small>${st.tempo} · ${st.meter[0]}/${st.meter[1]}${st.imported ? ' ✎' : ''}</small>`;
+    b.innerHTML = `${settings.lang === 'ar' ? st.name_ar : st.name}<small>${st.meter[0]}/${st.meter[1]}${st.imported ? ' ✎' : ''}</small>`;
     b.addEventListener('click', () => selectStyle(st.id));
-    box.appendChild(b);
+    (boxes[st.group] || boxes.west).appendChild(b);
   }
-  const on = box.querySelector('.btn.on');
-  if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'center' });
 }
 
 function noteLabel(n) { return NOTE_NAMES[n % 12] + (Math.floor(n / 12) - 1); }
 
+/** Tempo as a player reads it: quarter BPM, or the dotted-quarter value for 6/8. */
+function tempoLabel() {
+  if (seq.style.meter[1] === 8) return `♩. ${Math.round(seq.tempo * 2 / 3)}`;
+  return String(seq.tempo);
+}
+
 function renderStatus() {
-  $('tempoVal').textContent = seq.tempo;
+  $('tempoVal').textContent = tempoLabel();
   $('transVal').textContent = (settings.transpose > 0 ? '+' : '') + settings.transpose;
   $('splitVal').textContent = noteLabel(settings.split);
   $('chordVal').textContent = chordName(seq.chord);
@@ -444,7 +506,9 @@ function renderSettings() {
   }
   document.querySelectorAll('input[data-bus]').forEach((r) => { r.value = settings.bus[r.dataset.bus]; });
   $('latencyVal').textContent = audio.latencyMs();
-  $('installBtn').hidden = !deferredInstall;
+  $('awakeBtn').classList.toggle('on', !!settings.keepAwake);
+  $('awakeBtn').hidden = !('wakeLock' in navigator);
+  renderInstall();
   renderMidi(midi.list());
 }
 
@@ -453,13 +517,14 @@ const KB_LOW = 48, KB_HIGH = 72; // C3..C5
 function buildKeyboard() {
   const kb = $('keyboard');
   kb.innerHTML = '';
+  keyEls.clear();
   const whites = [];
   for (let n = KB_LOW; n <= KB_HIGH; n++) if (![1, 3, 6, 8, 10].includes(n % 12)) whites.push(n);
   const w = 100 / whites.length;
   for (const n of whites) {
     const k = document.createElement('div');
     k.className = 'key'; k.dataset.note = n; k.textContent = n % 12 === 0 ? noteLabel(n) : '';
-    kb.appendChild(k);
+    kb.appendChild(k); keyEls.set(n, k);
   }
   for (let n = KB_LOW; n <= KB_HIGH; n++) {
     if (![1, 3, 6, 8, 10].includes(n % 12)) continue;
@@ -467,7 +532,7 @@ function buildKeyboard() {
     const k = document.createElement('div');
     k.className = 'key black'; k.dataset.note = n;
     k.style.left = `${idx * w - w * 0.3}%`; k.style.width = `${w * 0.6}%`;
-    kb.appendChild(k);
+    kb.appendChild(k); keyEls.set(n, k);
   }
   const active = new Map(); // pointerId → note
   const keyAt = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.classList.contains('key') ? +el.dataset.note : null; };
@@ -488,26 +553,29 @@ function renderKeyboard() {
   const kb = $('keyboard');
   kb.classList.toggle('hidden', !settings.keysShown);
   $('keysToggle').textContent = t(settings.lang, settings.keysShown ? 'hideKeys' : 'showKeys');
-  kb.querySelectorAll('.key').forEach((k) => {
-    const n = +k.dataset.note;
+  for (const [n, k] of keyEls) {
     k.classList.toggle('lower', n < settings.split);
     k.classList.toggle('split', n === settings.split);
-  });
+  }
 }
 
 function renderKey(note, on) {
-  const k = $('keyboard').querySelector(`.key[data-note="${note}"]`);
+  const k = keyEls.get(note);
   if (k) k.classList.toggle('on', on);
 }
 
 function beatLoop() {
   if (seq && seq.playing) {
     const pos = seq.position();
-    const bpb = seq.style.beatsPerBar;
+    const m = seq.style.meter;
+    const pulses = m[1] === 8 ? m[0] / 3 : m[0];              // 6/8 pulses twice a bar, 4/4 four times
+    const barFrac = (pos.beat + pos.frac) / seq.style.beatsPerBar;
+    const pulse = Math.floor(barFrac * pulses);
+    const pfrac = barFrac * pulses - pulse;
     const leds = $('beat').querySelectorAll('i');
     leds.forEach((led, i) => {
-      const on = i < bpb && i === pos.beat && pos.frac < 0.5;
-      led.classList.toggle('on', on);
+      led.hidden = i >= pulses;
+      led.classList.toggle('on', i === pulse && pfrac < 0.5);
       led.classList.toggle('one', i === 0);
     });
   }
