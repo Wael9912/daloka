@@ -267,7 +267,7 @@ function makeSet() {
   eq(Object.keys(p.rhythm.tracks).sort(), ['acc1', 'bass', 'drums'], 'org: track records (Wave ignored)');
   eq(p.rhythm.patterns.map((x) => [x.track, x.partId, x.rows.length]), [['bass', 0x1111, 2], ['acc1', 0x1111, 3], ['drums', 0x1111, 2], ['bass', 0x2222, 1], ['drums', 0x3333, 4]], 'org: patterns by part and track with note rows');
   eq(p.rhythm.parts.map((x) => [x.name, x.lengthTicks, x.type]), [['Variation 1', 2000, 0x20], ['Variation 2', 1000, 0x21], ['Fill 1', 1000, 0x30]], 'org: part table (only parts that have patterns)');
-  eq(assignInstruments(p), { bass: 0, acc1: 0, drums: 1 }, 'org: bass/chords → the oud multisample, drums → the kit');
+  eq(assignInstruments(p), { bass: 1, acc1: 0, drums: 1 }, 'org: chords → the oud multisample (60–72), bass (36/43) and drums → the kit whose roots cover them');
   const [st] = orgStyles(p, { id: 'org:t', name: 'T' });
   eq([st.parts.mainA.bars, st.parts.mainB.bars, st.parts.fillA.bars, st.parts.intro.bars], [2, 1, 1, 2], 'org: 1000 ticks = one bar; missing intro falls back to Variation 1');
   const bass = st.parts.mainA.events.filter((e) => e.track === 'bass').map((e) => [e.t, e.n]);
