@@ -12,7 +12,7 @@ import { detectChord, chordName, NOTE_NAMES } from './chord.js';
 import { t } from './i18n.js';
 import * as store from './store.js';
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.3.1';
 
 // GM programs to prefer for each built-in voice name when an SF2 is loaded.
 const GM_FOR = { piano: 0, organ: 16, accordion: 21, oud: 24, tambour: 105, strings: 48, brass: 61, sax: 65, flute: 73, bass: 33, lead: 81 };
@@ -447,13 +447,13 @@ async function importSty(e) {
       styFiles = styFiles.filter((f) => f.name !== file.name);
       styFiles.push({ name: file.name, buf });
       added.push(file.name.replace(/\.[^.]+$/, ''));
-    } catch (err) { bad.push(`${file.name}: ${err.message}`); }
+    } catch (err) { bad.push(`${file.name}: ${t(settings.lang, 'fmt_' + err.message) !== 'fmt_' + err.message ? t(settings.lang, 'fmt_' + err.message) : err.message}`); }
   }
   try { await store.putFile('styfiles', styFiles); } catch (_) { /* no IndexedDB */ }
   buildStyles();
   if (added.length) selectStyle('sty:' + added[0]);
   renderSettings();
-  if (bad.length) toast(`${t(settings.lang, 'error')}: ${bad.slice(0, 2).join(' · ')}`, 6000);
+  if (bad.length) toast(`${t(settings.lang, 'error')}: ${bad.slice(0, 2).join(' · ')}`, 9000);
   else toast(`${t(settings.lang, 'imported')}: ${added.join(', ')}`);
   e.target.value = '';
 }

@@ -40,10 +40,21 @@ const u32 = (b, i) => ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i +
 const u16 = (b, i) => (b[i] << 8) | b[i + 1];
 const ascii = (b, i, n) => { let s = ''; for (let k = 0; k < n; k++) s += String.fromCharCode(b[i + k]); return s; };
 
+/** What kind of keyboard file is this? 'yamaha' | 'org24' | 'korg' | 'unknown'. */
+export function sniffFormat(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const head = ascii(b, 0, Math.min(24, b.length));
+  if (head.startsWith('MThd')) return 'yamaha';           // Yamaha SFF style (or a plain MIDI file)
+  if (head.startsWith('Music Studio')) return 'org24';     // Sofeh ORG 24 / Music Studio .Set / .Instrument
+  if (head.startsWith('OC31') || head.startsWith('KORG') || head.startsWith('STY1')) return 'korg';
+  return 'unknown';
+}
+
 /** Parse the SMF0 part: markers, tempo, time signature, program changes, notes. */
 export function parseSMF(bytes) {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  if (ascii(b, 0, 4) !== 'MThd') throw new Error('not a Yamaha style (no MThd)');
+  const kind = sniffFormat(b);
+  if (kind !== 'yamaha') throw new Error(kind === 'org24' ? 'org24' : kind === 'korg' ? 'korg' : 'notYamaha');
   const division = u16(b, 12);
   if (ascii(b, 14, 4) !== 'MTrk') throw new Error('not a Yamaha style (no MTrk)');
   const trackLen = u32(b, 18);

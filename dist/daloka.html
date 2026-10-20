@@ -287,7 +287,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); min-height: 32px; 
       <p id="styInfo" class="muted"></p>
       <p class="muted" data-i18n="yamahaHelp"></p>
       <div class="actions">
-        <label class="btn file"><span data-i18n="importSty">Import Yamaha styles</span><input id="styFile" type="file" multiple accept=".sty,.prs,.sst,.bcs,.pst,application/octet-stream"></label>
+        <label class="btn file"><span data-i18n="importSty">Import styles (.sty / .set)</span><input id="styFile" type="file" multiple accept=".sty,.prs,.sst,.bcs,.pst,.set,.mid,application/octet-stream"></label>
         <button id="styRemove" class="btn" data-i18n="removeSty">Remove Yamaha styles</button>
       </div>
 
@@ -998,10 +998,21 @@ const u32 = (b, i) => ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i +
 const u16 = (b, i) => (b[i] << 8) | b[i + 1];
 const ascii = (b, i, n) => { let s = ''; for (let k = 0; k < n; k++) s += String.fromCharCode(b[i + k]); return s; };
 
+/** What kind of keyboard file is this? 'yamaha' | 'org24' | 'korg' | 'unknown'. */
+function sniffFormat(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const head = ascii(b, 0, Math.min(24, b.length));
+  if (head.startsWith('MThd')) return 'yamaha';           // Yamaha SFF style (or a plain MIDI file)
+  if (head.startsWith('Music Studio')) return 'org24';     // Sofeh ORG 24 / Music Studio .Set / .Instrument
+  if (head.startsWith('OC31') || head.startsWith('KORG') || head.startsWith('STY1')) return 'korg';
+  return 'unknown';
+}
+
 /** Parse the SMF0 part: markers, tempo, time signature, program changes, notes. */
 function parseSMF(bytes) {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  if (ascii(b, 0, 4) !== 'MThd') throw new Error('not a Yamaha style (no MThd)');
+  const kind = sniffFormat(b);
+  if (kind !== 'yamaha') throw new Error(kind === 'org24' ? 'org24' : kind === 'korg' ? 'korg' : 'notYamaha');
   const division = u16(b, 12);
   if (ascii(b, 14, 4) !== 'MTrk') throw new Error('not a Yamaha style (no MTrk)');
   const trackLen = u32(b, 18);
@@ -2169,7 +2180,8 @@ const STRINGS = {
     tapToStart: 'Tap to start', midi: 'MIDI', midiNone: 'No keyboard', midiConnect: 'Connect keyboard',
     midiUnsupported: 'This browser has no Web MIDI. Use Chrome on Android with the keyboard on a USB OTG cable.',
     rhythm: 'Rhythm', sudanese: 'Sudanese', western: 'Western', yamahaGroup: 'Yamaha styles',
-    yamahaStyles: 'Yamaha styles', importSty: 'Import Yamaha styles (.sty)', removeSty: 'Remove Yamaha styles', noSty: 'No Yamaha styles imported',
+    yamahaStyles: 'Yamaha styles', importSty: 'Import styles (.sty / .set)',
+    fmt_org24: 'this is an ORG 24 (Sofeh) set, a closed format Daloka cannot read yet', fmt_korg: 'this is a Korg Pa style, a closed format Daloka cannot read', fmt_notYamaha: 'not a Yamaha style file', removeSty: 'Remove Yamaha styles', noSty: 'No Yamaha styles imported',
     yamahaHelp: 'Any Yamaha PSR / Tyros / Genos style file (.sty, .prs, .sst) plays here: Intro, Main A/B (and C/D as a second style), Fill, Ending, with the chord following from its CASM. Sudanese Yamaha sets are shared as .sty files; copy them to the phone and pick them here. ORG 24 .Set files are a closed format and cannot be read.',
     style: 'Style', tempo: 'Tempo', transpose: 'Transpose', split: 'Split point', chord: 'Chord',
     intro: 'INTRO', mainA: 'A', mainB: 'B', fill: 'FILL', ending: 'END', start: 'START', stop: 'STOP', sync: 'Start with first chord',
@@ -2196,7 +2208,8 @@ const STRINGS = {
     tapToStart: 'اضغط للبدء', midi: 'MIDI', midiNone: 'لا يوجد كيبورد', midiConnect: 'وصّل الكيبورد',
     midiUnsupported: 'هذا المتصفح لا يدعم Web MIDI. افتح الصفحة في كروم على أندرويد ووصّل الكيبورد بكابل OTG.',
     rhythm: 'الإيقاع', sudanese: 'سوداني', western: 'غربي', yamahaGroup: 'إيقاعات ياماها',
-    yamahaStyles: 'إيقاعات ياماها', importSty: 'استيراد إيقاعات ياماها (.sty)', removeSty: 'إزالة إيقاعات ياماها', noSty: 'لا توجد إيقاعات ياماها مستوردة',
+    yamahaStyles: 'إيقاعات ياماها', importSty: 'استيراد إيقاعات (.sty / .set)',
+    fmt_org24: 'هذا سيت ORG 24 (Sofeh)، صيغة مغلقة لا يقرأها دلوكة بعد', fmt_korg: 'هذا إيقاع Korg Pa، صيغة مغلقة لا يقرأها دلوكة', fmt_notYamaha: 'ليس ملف إيقاع ياماها', removeSty: 'إزالة إيقاعات ياماها', noSty: 'لا توجد إيقاعات ياماها مستوردة',
     yamahaHelp: 'أي ملف إيقاع ياماها PSR / Tyros / Genos ‏(.sty ‏.prs ‏.sst) يعمل هنا: مقدمة، أساسي A/B (وC/D كإيقاع ثانٍ)، ضربة، خاتمة، والكورد يتبعه من CASM. السيتات السودانية لياماها تُتداول كملفات .sty؛ انسخها إلى الهاتف واخترها هنا. ملفات ORG 24 ‏(.Set) صيغة مغلقة ولا يمكن قراءتها.',
     style: 'الإيقاع', tempo: 'السرعة', transpose: 'نقل الطبقة', split: 'نقطة الفصل', chord: 'الكورد',
     intro: 'مقدمة', mainA: 'A', mainB: 'B', fill: 'ضربة', ending: 'خاتمة', start: 'تشغيل', stop: 'إيقاف', sync: 'يبدأ مع أول كورد',
@@ -2239,7 +2252,7 @@ function t(lang, key) {
 
 
 
-const VERSION = '0.3.0';
+const VERSION = '0.3.1';
 
 // GM programs to prefer for each built-in voice name when an SF2 is loaded.
 const GM_FOR = { piano: 0, organ: 16, accordion: 21, oud: 24, tambour: 105, strings: 48, brass: 61, sax: 65, flute: 73, bass: 33, lead: 81 };
@@ -2674,13 +2687,13 @@ async function importSty(e) {
       styFiles = styFiles.filter((f) => f.name !== file.name);
       styFiles.push({ name: file.name, buf });
       added.push(file.name.replace(/\.[^.]+$/, ''));
-    } catch (err) { bad.push(`${file.name}: ${err.message}`); }
+    } catch (err) { bad.push(`${file.name}: ${t(settings.lang, 'fmt_' + err.message) !== 'fmt_' + err.message ? t(settings.lang, 'fmt_' + err.message) : err.message}`); }
   }
   try { await store.putFile('styfiles', styFiles); } catch (_) { /* no IndexedDB */ }
   buildStyles();
   if (added.length) selectStyle('sty:' + added[0]);
   renderSettings();
-  if (bad.length) toast(`${t(settings.lang, 'error')}: ${bad.slice(0, 2).join(' · ')}`, 6000);
+  if (bad.length) toast(`${t(settings.lang, 'error')}: ${bad.slice(0, 2).join(' · ')}`, 9000);
   else toast(`${t(settings.lang, 'imported')}: ${added.join(', ')}`);
   e.target.value = '';
 }
