@@ -31,6 +31,12 @@ Sources consulted (2026-10-20):
 - The Sudanist, [The Genres of Sudanese Music](https://thesudanist.com/the-genres-of-sudanese-music/) (daluka, tar, shatam, dinger; aghani al-banat)
 - EMI Music blog, [ألحان سودانية قديمة في ثوب حديث](https://emimusic.ph/blog/) (modern production tempos: Tum Tum ≈ 96–102, Daloka ≈ 80–88, Mardoum ≈ 85–92; 2/4 and 6/8 with syncopation)
 
+## Keyboard sets from elsewhere (0.3.0)
+
+The owner asked for the ORG 24 "Sudanese sets" (`.Set` files for Sofeh Sunrise's ORG 2024 Android app). Examined 2026-10-20 on a free set from sofeh.com (`fyp2 REZA 99 OFFICIAL.Set`, 204 MB): the file starts with the string «Music Studio music», holds its samples as MP3 frames and raw PCM, and its rhythms in a private block near the end (names like Variation / Intro / Fill / Ending, no MIDI chunks at all). Sofeh's forum confirms the format is only readable by their Music Studio (Windows) and ORG 24; Korg Pa `.STY` is equally closed (OC31-compressed blocks). Neither can be read honestly without reverse engineering a format that changes per release, and the Sudanese `.Set` files circulate through cracked-app channels. **Not supported.**
+
+What is open enough: the **Yamaha style format** (SFF1/SFF2, documented by jososoft.dk), which Sudanese keyboardists trade as `.sty` files for the PSR-3000 / S970 / A3000 ("ايقاعات سودانية ياماها", the Yamahas Sudanese Musicians group, the sudaneseonline rhythm threads). `js/sty.js` imports them: sections by marker, CASM Ctab per channel (source chord root/type, NTR, NTT), program changes. Limits of v1: Note Limits / High Key / retrigger rules are ignored, every non-bypass NTT becomes Daloka's chord re-map, and XG drum notes above the GM kit (e.g. 77, 68, 30) fall to a generic membrane in the built-in kit — a GM SoundFont plays them properly.
+
 ## Workflow per style (unchanged)
 
 1. Pick 2 to 3 reference recordings; note the tempo and the accent pattern.

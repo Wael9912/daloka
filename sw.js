@@ -1,9 +1,9 @@
 // Offline cache for the app shell. Bump VERSION on every release.
-const VERSION = 'daloka-0.2.1';
+const VERSION = 'daloka-0.3.0';
 const FILES = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/audio.js', './js/chord.js', './js/engine.js', './js/i18n.js', './js/midi.js',
-  './js/sequencer.js', './js/sf2.js', './js/store.js', './js/styledsl.js', './js/styles.js', './js/synth.js',
+  './js/sequencer.js', './js/sf2.js', './js/store.js', './js/styledsl.js', './js/styles.js', './js/sty.js', './js/synth.js',
   './icons/icon-192.png', './icons/icon-512.png',
 ];
 

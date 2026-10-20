@@ -7,11 +7,12 @@ import { Sequencer } from './sequencer.js';
 import { MidiInput } from './midi.js';
 import { STYLE_PACK } from './styles.js';
 import { compileStyle, lintPack } from './styledsl.js';
+import { convertStyle } from './sty.js';
 import { detectChord, chordName, NOTE_NAMES } from './chord.js';
 import { t } from './i18n.js';
 import * as store from './store.js';
 
-export const VERSION = '0.2.1';
+export const VERSION = '0.3.0';
 
 // GM programs to prefer for each built-in voice name when an SF2 is loaded.
 const GM_FOR = { piano: 0, organ: 16, accordion: 21, oud: 24, tambour: 105, strings: 48, brass: 61, sax: 65, flute: 73, bass: 33, lead: 81 };
@@ -30,6 +31,7 @@ const settings = Object.assign({
 let audio, engine, seq, midi;
 let styles = [];                 // compiled styles (built-in + imported)
 let importedPack = null;
+let styFiles = [];               // imported Yamaha style files [{ name, buf }]
 const held = new Map();          // raw note → channels it sounds on
 const chordNotes = new Set();    // raw notes in the chord zone
 let lastChord = null;
@@ -47,7 +49,8 @@ function boot() {
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     // A new build takes over as soon as it is installed: reload once so the phone never shows a stale version.
     let reloading = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => { if (navigator.serviceWorker.controller && !reloading) { reloading = true; location.reload(); } });
+    const hadController = !!navigator.serviceWorker.controller;   // first visit: the worker claiming the page is not an update
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloading) { reloading = true; location.reload(); } });
     navigator.serviceWorker.register('sw.js').then((reg) => { reg.update().catch(() => {}); }).catch(() => {});
   }
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; renderInstall(); });
@@ -154,6 +157,7 @@ async function loadStoredFiles() {
     if (sf2 && sf2.buf) engine.loadSF2(sf2.buf, sf2.name);
   } catch (_) { /* no IndexedDB */ }
   try { importedPack = await store.getFile('styles'); } catch (_) { importedPack = null; }
+  try { styFiles = (await store.getFile('styfiles')) || []; } catch (_) { styFiles = []; }
 }
 
 // ───────────────────────── styles ─────────────────────────
@@ -167,6 +171,34 @@ function buildStyles() {
       if (i >= 0) styles[i] = st; else styles.push(st);
     }
   }
+  for (const f of styFiles) {
+    try {
+      const base = f.name.replace(/\.[^.]+$/, '');
+      for (const st of convertStyle(new Uint8Array(f.buf), { id: 'sty:' + base, name: base })) styles.push(st);
+    } catch (err) { console.warn('style file skipped', f.name, err.message); }
+  }
+}
+
+// GM program number → the closest built-in synth preset (used when no SF2 is loaded).
+function synthForGM(gm) {
+  if (gm < 8) return 'piano';
+  if (gm < 16) return 'piano';
+  if (gm === 21 || gm === 22 || gm === 23) return 'accordion';
+  if (gm < 24) return 'organ';
+  if (gm < 32) return 'oud';
+  if (gm < 40) return 'bass';
+  if (gm < 48) return 'strings';
+  if (gm < 56) return 'strings';
+  if (gm < 64) return 'brass';
+  if (gm < 72) return 'sax';
+  if (gm < 80) return 'flute';
+  if (gm < 96) return 'lead';
+  if (gm === 104 || gm === 105 || gm === 106 || gm === 107) return 'tambour';
+  return 'lead';
+}
+function programForGM(gm) {
+  if (engine.hasSF2 && engine.sf2.findPreset(0, gm) >= 0) return { kind: 'sf2', bank: 0, program: gm };
+  return { kind: 'synth', name: synthForGM(gm) };
 }
 
 function currentStyle() { return styles.find((s) => s.id === settings.styleId) || styles[0]; }
@@ -198,6 +230,11 @@ function applyStyleVoices(st) {
     const prog = programFor(v[role] || (role === 'bass' ? 'bass' : role === 'upper' ? 'lead' : 'strings'));
     engine.setProgram(CH[role], prog);
     settings.programs[CH[role]] = engine.programKey(CH[role]);
+  }
+  // A Yamaha style brings its own GM programs per part (chord 2 and phrase 2 on channels 6 / 7).
+  for (const [ch, gm] of Object.entries(st.gmPrograms || {})) {
+    engine.setProgram(+ch, programForGM(gm));
+    settings.programs[ch] = engine.programKey(+ch);
   }
   for (const ch of [CH.drums, CH.perc]) {
     const kit = engine.hasSF2 && engine.sf2.findPreset(128, 0) >= 0 ? { kind: 'sf2', bank: 128, program: 0 } : { kind: 'synth', name: 'kit' };
@@ -283,6 +320,8 @@ function bindUI() {
   $('styleFile').addEventListener('change', importStyles);
   $('styleExport').addEventListener('click', () => { const o = $('styleExportOut'); o.hidden = !o.hidden; o.textContent = JSON.stringify(STYLE_PACK, null, 1); });
   $('styleRemove').addEventListener('click', async () => { await store.deleteFile('styles'); importedPack = null; buildStyles(); selectStyle(settings.styleId); renderSettings(); });
+  $('styFile').addEventListener('change', importSty);
+  $('styRemove').addEventListener('click', async () => { await store.deleteFile('styfiles'); styFiles = []; buildStyles(); selectStyle(settings.styleId); renderSettings(); });
   document.querySelectorAll('input[data-bus]').forEach((r) => r.addEventListener('input', () => {
     const v = +r.value; settings.bus[r.dataset.bus] = v; persist();
     r.dataset.bus === 'master' ? audio.setMaster(v) : audio.setBus(r.dataset.bus, v);
@@ -397,6 +436,28 @@ async function importStyles(e) {
   e.target.value = '';
 }
 
+async function importSty(e) {
+  const files = [...e.target.files];
+  if (!files.length) return;
+  const added = [], bad = [];
+  for (const file of files) {
+    try {
+      const buf = await file.arrayBuffer();
+      convertStyle(new Uint8Array(buf), { id: 'x', name: 'x' });   // parse once so a bad file is refused here
+      styFiles = styFiles.filter((f) => f.name !== file.name);
+      styFiles.push({ name: file.name, buf });
+      added.push(file.name.replace(/\.[^.]+$/, ''));
+    } catch (err) { bad.push(`${file.name}: ${err.message}`); }
+  }
+  try { await store.putFile('styfiles', styFiles); } catch (_) { /* no IndexedDB */ }
+  buildStyles();
+  if (added.length) selectStyle('sty:' + added[0]);
+  renderSettings();
+  if (bad.length) toast(`${t(settings.lang, 'error')}: ${bad.slice(0, 2).join(' · ')}`, 6000);
+  else toast(`${t(settings.lang, 'imported')}: ${added.join(', ')}`);
+  e.target.value = '';
+}
+
 // ───────────────────────── rendering ─────────────────────────
 function applyLang() {
   const lang = settings.lang;
@@ -409,8 +470,9 @@ function applyLang() {
 function renderAll() { renderStyles(); renderStatus(); renderTransport(); renderVoices(); renderRegs(); renderKeyboard(); }
 
 function renderStyles() {
-  const boxes = { sudan: $('sudanChips'), west: $('westChips') };
+  const boxes = { sudan: $('sudanChips'), west: $('westChips'), yamaha: $('yamahaChips') };
   for (const b of Object.values(boxes)) b.innerHTML = '';
+  $('yamahaGrp').hidden = !styles.some((s) => s.group === 'yamaha');
   for (const st of styles) {
     const b = document.createElement('button');
     b.className = 'btn' + (st.id === settings.styleId ? ' on' : '');
@@ -490,6 +552,8 @@ function renderSettings() {
   $('sf2Info').textContent = engine.hasSF2 ? `${engine.sf2.name} — ${engine.sf2.presets.length} presets` : t(settings.lang, 'noSF2');
   $('sf2Remove').hidden = !engine.hasSF2;
   $('styleRemove').hidden = !importedPack;
+  $('styRemove').hidden = !styFiles.length;
+  $('styInfo').textContent = styFiles.length ? styFiles.map((f) => f.name).join(', ') : t(settings.lang, 'noSty');
   const pv = $('partVoices');
   pv.innerHTML = '';
   for (const role of ['bass', 'chord', 'pad', 'phrase', 'drums', 'perc']) {

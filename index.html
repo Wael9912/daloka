@@ -38,6 +38,7 @@
     <section class="row rhythms">
       <div class="grp"><label data-i18n="sudanese">Sudanese</label><div id="sudanChips" class="chips"></div></div>
       <div class="grp"><label data-i18n="western">Western</label><div id="westChips" class="chips"></div></div>
+      <div class="grp" id="yamahaGrp" hidden><label data-i18n="yamahaGroup">Yamaha styles</label><div id="yamahaChips" class="chips"></div></div>
     </section>
 
     <section class="row transport">
@@ -135,6 +136,14 @@
         <button id="styleRemove" class="btn" data-i18n="removeStyles">Remove imported styles</button>
       </div>
       <pre id="styleExportOut" class="export" hidden></pre>
+
+      <h3 data-i18n="yamahaStyles">Yamaha styles</h3>
+      <p id="styInfo" class="muted"></p>
+      <p class="muted" data-i18n="yamahaHelp"></p>
+      <div class="actions">
+        <label class="btn file"><span data-i18n="importSty">Import Yamaha styles</span><input id="styFile" type="file" multiple accept=".sty,.prs,.sst,.bcs,.pst,application/octet-stream"></label>
+        <button id="styRemove" class="btn" data-i18n="removeSty">Remove Yamaha styles</button>
+      </div>
 
       <h3 data-i18n="mixer">Mixer</h3>
       <div class="sliders">

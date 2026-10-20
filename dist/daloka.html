@@ -184,6 +184,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); min-height: 32px; 
     <section class="row rhythms">
       <div class="grp"><label data-i18n="sudanese">Sudanese</label><div id="sudanChips" class="chips"></div></div>
       <div class="grp"><label data-i18n="western">Western</label><div id="westChips" class="chips"></div></div>
+      <div class="grp" id="yamahaGrp" hidden><label data-i18n="yamahaGroup">Yamaha styles</label><div id="yamahaChips" class="chips"></div></div>
     </section>
 
     <section class="row transport">
@@ -281,6 +282,14 @@ input[type=range] { width: 100%; accent-color: var(--accent); min-height: 32px; 
         <button id="styleRemove" class="btn" data-i18n="removeStyles">Remove imported styles</button>
       </div>
       <pre id="styleExportOut" class="export" hidden></pre>
+
+      <h3 data-i18n="yamahaStyles">Yamaha styles</h3>
+      <p id="styInfo" class="muted"></p>
+      <p class="muted" data-i18n="yamahaHelp"></p>
+      <div class="actions">
+        <label class="btn file"><span data-i18n="importSty">Import Yamaha styles</span><input id="styFile" type="file" multiple accept=".sty,.prs,.sst,.bcs,.pst,application/octet-stream"></label>
+        <button id="styRemove" class="btn" data-i18n="removeSty">Remove Yamaha styles</button>
+      </div>
 
       <h3 data-i18n="mixer">Mixer</h3>
       <div class="sliders">
@@ -944,6 +953,216 @@ const STYLE_PACK = [
     },
   },
 ];
+
+
+// ───── js/sty.js ─────
+// Yamaha style file (.sty / .prs / .sst, SFF1 and SFF2) → a compiled Daloka style.
+// Pure logic, no browser APIs (runs under node for the tests).
+//
+// A style file is a Standard MIDI File type 0 whose single track is cut into
+// sections by marker meta-events ("SInt", "Main A", "Fill In AA", "Intro A",
+// "Ending A" …), followed by Yamaha chunks; the first, CASM, holds per-channel
+// Ctab records: source channel → destination channel, the chord the pattern was
+// recorded over (root + type), the Note Transposition Rule and Table.
+// Reference: jososoft.dk "Style CASM Section Format" + "CASM Format 1 / 2".
+//
+// Mapping to Daloka: destination channels 9–16 (0-based 8–15) are
+//   8 rhythm sub → perc (10), 9 rhythm main → drums (9), 10 bass → 2,
+//   11 chord 1 → 3, 12 chord 2 → 6, 13 pad → 4, 14 phrase 1 → 5, 15 phrase 2 → 7.
+// Notes are shifted so the pattern reads over C, then the sequencer re-maps them
+// per chord with transposeNote(): NTT bypass → no transposition, anything else → 'chord'.
+
+const DEST_TO_TRACK = {
+  8: { name: 'perc', role: 'perc', channel: 10 },
+  9: { name: 'drums', role: 'drums', channel: 9 },
+  10: { name: 'bass', role: 'bass', channel: 2 },
+  11: { name: 'chord', role: 'chord', channel: 3 },
+  12: { name: 'chord2', role: 'chord', channel: 6 },
+  13: { name: 'pad', role: 'pad', channel: 4 },
+  14: { name: 'phrase', role: 'phrase', channel: 5 },
+  15: { name: 'phrase2', role: 'phrase', channel: 7 },
+};
+
+// Yamaha source-chord types (Ctab byte 19), in the order of the format reference.
+const YAMAHA_CHORD_TYPES = ['Maj', 'Maj6', 'Maj7', 'M7#11', 'Madd9', 'M7(9)', 'M6(9)', 'aug', 'm', 'm6', 'm7', 'm7b5', 'm(9)', 'm7(9)', 'm7(11)', 'mM7', 'mM7(9)', 'dim', 'dim7', '7', '7sus', '7b5', '7(9)', '7(#11)', '7(13)', '7(b9)', '7(b13)', '7(#9)', 'M7aug', '7aug', '1+8', '1+5', 'sus4', '1+2+5'];
+
+function readVar(b, i) {
+  let v = 0;
+  for (;;) {
+    const c = b[i++];
+    v = (v << 7) | (c & 0x7f);
+    if (!(c & 0x80)) return [v, i];
+  }
+}
+const u32 = (b, i) => ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0;
+const u16 = (b, i) => (b[i] << 8) | b[i + 1];
+const ascii = (b, i, n) => { let s = ''; for (let k = 0; k < n; k++) s += String.fromCharCode(b[i + k]); return s; };
+
+/** Parse the SMF0 part: markers, tempo, time signature, program changes, notes. */
+function parseSMF(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (ascii(b, 0, 4) !== 'MThd') throw new Error('not a Yamaha style (no MThd)');
+  const division = u16(b, 12);
+  if (ascii(b, 14, 4) !== 'MTrk') throw new Error('not a Yamaha style (no MTrk)');
+  const trackLen = u32(b, 18);
+  const end = 22 + trackLen;
+  let i = 22, t = 0, status = null;
+  let tempo = 120, meter = [4, 4];
+  const markers = [];
+  const programs = {};   // channel → { bank, program }
+  const bank = {};
+  const notes = [];      // { t (ticks), ch, n, v, d (ticks) }
+  const open = new Map(); // ch:note → note record
+  const closeNote = (ch, n, at) => { const k = ch * 128 + n; const rec = open.get(k); if (rec) { rec.d = Math.max(1, at - rec.t); open.delete(k); } };
+  while (i < end) {
+    let d; [d, i] = readVar(b, i); t += d;
+    const s = b[i];
+    if (s === 0xff) {
+      const type = b[i + 1]; let len; [len, i] = readVar(b, i + 2);
+      const data = b.subarray(i, i + len); i += len;
+      if (type === 0x06) markers.push({ t, name: ascii(data, 0, len).trim() });
+      else if (type === 0x51) tempo = Math.round(60e6 / ((data[0] << 16) | (data[1] << 8) | data[2]));
+      else if (type === 0x58) meter = [data[0], 2 ** data[1]];
+      else if (type === 0x2f) break;
+      continue;
+    }
+    if (s === 0xf0 || s === 0xf7) { let len; [len, i] = readVar(b, i + 1); i += len; continue; }
+    if (s & 0x80) { status = s; i++; }
+    const kind = status & 0xf0, ch = status & 0x0f;
+    if (kind === 0x90 && b[i + 1] > 0) {
+      closeNote(ch, b[i], t);
+      const rec = { t, ch, n: b[i], v: b[i + 1], d: division / 4 };
+      notes.push(rec); open.set(ch * 128 + b[i], rec); i += 2;
+    } else if (kind === 0x80 || kind === 0x90) { closeNote(ch, b[i], t); i += 2; }
+    else if (kind === 0xb0) { if (b[i] === 0) bank[ch] = (bank[ch] || 0) | (b[i + 1] << 7); else if (b[i] === 32) bank[ch] = (bank[ch] || 0) | b[i + 1]; i += 2; }
+    else if (kind === 0xc0) { programs[ch] = { bank: bank[ch] || 0, program: b[i] }; i += 1; }
+    else if (kind === 0xa0 || kind === 0xe0) i += 2;
+    else if (kind === 0xd0) i += 1;
+    else throw new Error(`bad MIDI status ${s.toString(16)} at ${i}`);
+  }
+  for (const rec of open.values()) rec.d = Math.max(1, t - rec.t);
+  return { division, tempo, meter, markers, programs, notes, midiEnd: end, sff2: markers.some((m) => m.name === 'SFF2') };
+}
+
+/** Parse the CASM chunk: Ctab records for the CSEG that covers `partName` (else the first). */
+function parseCASM(bytes, midiEnd, sff2, partName = 'Main A') {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let p = midiEnd;
+  while (p + 8 <= b.length && ascii(b, p, 4) !== 'CASM') p += 8 + u32(b, p + 4);
+  if (p + 8 > b.length) return null;
+  const casmEnd = p + 8 + u32(b, p + 4);
+  p += 8;
+  let first = null;
+  while (p + 8 <= casmEnd && ascii(b, p, 4) === 'CSEG') {
+    const segEnd = p + 8 + u32(b, p + 4);
+    let q = p + 8;
+    let parts = [];
+    const ctabs = {};
+    while (q + 8 <= segEnd) {
+      const id = ascii(b, q, 4), len = u32(b, q + 4), d = b.subarray(q + 8, q + 8 + len);
+      if (id === 'Sdec') parts = ascii(d, 0, len).split(',').map((s) => s.trim());
+      else if (id === 'Ctab' || id === 'Ctb2') {
+        const rec = { src: d[0], name: ascii(d, 1, 8).trim(), dest: d[9], root: d[18], type: d[19] };
+        if (id === 'Ctb2' || sff2) { rec.ntr = d[26]; rec.ntt = d[27] & 0x7f; }   // Format 2: low/mid limits (2 bytes), low section (6), then middle section
+        else { rec.ntr = d[20]; rec.ntt = d[21]; }
+        ctabs[rec.src] = rec;
+      }
+      q += 8 + len;
+    }
+    const seg = { parts, ctabs };
+    if (!first) first = seg;
+    if (parts.includes(partName)) return seg;
+    p = segEnd;
+  }
+  return first;
+}
+
+// Yamaha part name → Daloka part, for the A/B pair and the C/D pair.
+const PART_MAP = {
+  ab: { intro: ['Intro A', 'Intro B', 'Intro C'], mainA: ['Main A'], mainB: ['Main B', 'Main A'], fillA: ['Fill In AA', 'Fill In AB'], fillB: ['Fill In BB', 'Fill In BA', 'Fill In AA'], ending: ['Ending A', 'Ending B', 'Ending C'] },
+  cd: { intro: ['Intro B', 'Intro C', 'Intro A'], mainA: ['Main C'], mainB: ['Main D', 'Main C'], fillA: ['Fill In CC'], fillB: ['Fill In DD', 'Fill In CC'], ending: ['Ending B', 'Ending C', 'Ending A'] },
+};
+
+function sectionsOf(smf) {
+  const out = {};
+  const ms = smf.markers.filter((m) => !['SFF1', 'SFF2', 'SInt'].includes(m.name));
+  const lastTick = smf.notes.reduce((m, n) => Math.max(m, n.t + n.d), 0);
+  ms.forEach((m, k) => { out[m.name] = { start: m.t, end: k + 1 < ms.length ? ms[k + 1].t : Math.max(lastTick, m.t + smf.division) }; });
+  return out;
+}
+
+/**
+ * Convert a parsed style file into one or two compiled Daloka styles
+ * ({ id, name, tempo, meter, tracks, parts: { bars, beats, events } }).
+ */
+function convertStyle(bytes, { id = 'sty', name = 'Style' } = {}) {
+  const smf = parseSMF(bytes);
+  const casm = parseCASM(bytes, smf.midiEnd, smf.sff2) || { ctabs: {} };
+  const sections = sectionsOf(smf);
+  const meter = smf.meter;
+  const beatsPerBar = (meter[0] * 4) / meter[1];
+  const ticksPerBeat = smf.division;
+
+  // Channel plan: source channel → track + transposition, from the Ctabs (default: channel = destination).
+  const plan = {};
+  for (let ch = 8; ch <= 15; ch++) plan[ch] = { dest: ch, root: 0, type: 2, ntr: ch <= 9 ? 1 : 0, ntt: ch <= 9 ? 0 : 1 };
+  for (const rec of Object.values(casm.ctabs)) plan[rec.src] = rec;
+  const tracks = {};
+  const gmPrograms = {};
+  for (const [src, rec] of Object.entries(plan)) {
+    const tr = DEST_TO_TRACK[rec.dest];
+    if (!tr) continue;
+    const isDrum = tr.role === 'drums' || tr.role === 'perc';
+    tracks[tr.name] = { role: tr.role, channel: tr.channel, transpose: isDrum || rec.ntt === 0 ? 'none' : 'chord', gate: 1, src: +src, shift: isDrum ? 0 : (rec.root > 6 ? 12 - rec.root : -rec.root) };
+    const pg = smf.programs[+src];
+    if (pg && !isDrum) gmPrograms[tr.channel] = pg.program;
+  }
+  const bySrc = {};
+  for (const [tname, tr] of Object.entries(tracks)) bySrc[tr.src] = tname;
+
+  const build = (map, suffix) => {
+    if (!sections[map.mainA[0]]) return null;
+    const parts = {};
+    for (const part of ['mainA', 'mainB', 'intro', 'fillA', 'fillB', 'ending']) {
+      const candidates = map[part];
+      const secName = candidates.find((c) => sections[c]);
+      const sec = secName ? sections[secName] : null;
+      const events = [];
+      let bars;
+      if (sec) {
+        bars = Math.max(1, Math.round((sec.end - sec.start) / (ticksPerBeat * beatsPerBar)));
+        for (const n of smf.notes) {
+          if (n.t < sec.start || n.t >= sec.end) continue;
+          const tname = bySrc[n.ch];
+          if (!tname) continue;
+          events.push({ track: tname, t: (n.t - sec.start) / ticksPerBeat, n: n.n + tracks[tname].shift, v: n.v, d: n.d / ticksPerBeat });
+        }
+      } else {
+        // Missing part: a fill becomes one bar of the main, an intro/ending one bar of the main with a cut.
+        const src = parts.mainA;
+        bars = 1;
+        for (const e of src.events) if (e.t < beatsPerBar) events.push({ ...e });
+      }
+      events.sort((a, b) => a.t - b.t);
+      parts[part] = { bars, beats: bars * beatsPerBar, events };
+    }
+    const used = {};
+    for (const [tname, tr] of Object.entries(tracks)) if (Object.values(parts).some((pt) => pt.events.some((e) => e.track === tname))) used[tname] = tr;
+    return {
+      id: id + suffix, name: name + (suffix ? ' (C/D)' : ''), name_ar: name + (suffix ? ' (C/D)' : ''), group: 'yamaha', imported: true, yamaha: true,
+      tempo: smf.tempo, meter, steps: meter[1] === 8 ? meter[0] * 2 : meter[0] * 4, beatsPerBar, voices: {}, tracks: used, gmPrograms, parts,
+      sections: Object.keys(sections),
+    };
+  };
+  const out = [];
+  const ab = build(PART_MAP.ab, '');
+  if (ab) out.push(ab);
+  const cd = build(PART_MAP.cd, '-cd');
+  if (cd) out.push(cd);
+  if (!out.length) throw new Error('no Main A section');
+  return out;
+}
+
 
 
 // ───── js/sequencer.js ─────
@@ -1949,7 +2168,9 @@ const STRINGS = {
     app: 'Daloka', subtitle: 'Sudanese arranger keyboard',
     tapToStart: 'Tap to start', midi: 'MIDI', midiNone: 'No keyboard', midiConnect: 'Connect keyboard',
     midiUnsupported: 'This browser has no Web MIDI. Use Chrome on Android with the keyboard on a USB OTG cable.',
-    rhythm: 'Rhythm', sudanese: 'Sudanese', western: 'Western',
+    rhythm: 'Rhythm', sudanese: 'Sudanese', western: 'Western', yamahaGroup: 'Yamaha styles',
+    yamahaStyles: 'Yamaha styles', importSty: 'Import Yamaha styles (.sty)', removeSty: 'Remove Yamaha styles', noSty: 'No Yamaha styles imported',
+    yamahaHelp: 'Any Yamaha PSR / Tyros / Genos style file (.sty, .prs, .sst) plays here: Intro, Main A/B (and C/D as a second style), Fill, Ending, with the chord following from its CASM. Sudanese Yamaha sets are shared as .sty files; copy them to the phone and pick them here. ORG 24 .Set files are a closed format and cannot be read.',
     style: 'Style', tempo: 'Tempo', transpose: 'Transpose', split: 'Split point', chord: 'Chord',
     intro: 'INTRO', mainA: 'A', mainB: 'B', fill: 'FILL', ending: 'END', start: 'START', stop: 'STOP', sync: 'Start with first chord',
     voice: 'Right-hand sound', upper: 'Right hand', lower: 'Left-hand sound', layer: 'Layer two sounds', lowerOn: 'Left hand also sounds', chordMode: 'Chords', fingered: 'Full chords', single: 'One finger',
@@ -1974,7 +2195,9 @@ const STRINGS = {
     app: 'دلوكة', subtitle: 'أورغ سوداني مصاحب',
     tapToStart: 'اضغط للبدء', midi: 'MIDI', midiNone: 'لا يوجد كيبورد', midiConnect: 'وصّل الكيبورد',
     midiUnsupported: 'هذا المتصفح لا يدعم Web MIDI. افتح الصفحة في كروم على أندرويد ووصّل الكيبورد بكابل OTG.',
-    rhythm: 'الإيقاع', sudanese: 'سوداني', western: 'غربي',
+    rhythm: 'الإيقاع', sudanese: 'سوداني', western: 'غربي', yamahaGroup: 'إيقاعات ياماها',
+    yamahaStyles: 'إيقاعات ياماها', importSty: 'استيراد إيقاعات ياماها (.sty)', removeSty: 'إزالة إيقاعات ياماها', noSty: 'لا توجد إيقاعات ياماها مستوردة',
+    yamahaHelp: 'أي ملف إيقاع ياماها PSR / Tyros / Genos ‏(.sty ‏.prs ‏.sst) يعمل هنا: مقدمة، أساسي A/B (وC/D كإيقاع ثانٍ)، ضربة، خاتمة، والكورد يتبعه من CASM. السيتات السودانية لياماها تُتداول كملفات .sty؛ انسخها إلى الهاتف واخترها هنا. ملفات ORG 24 ‏(.Set) صيغة مغلقة ولا يمكن قراءتها.',
     style: 'الإيقاع', tempo: 'السرعة', transpose: 'نقل الطبقة', split: 'نقطة الفصل', chord: 'الكورد',
     intro: 'مقدمة', mainA: 'A', mainB: 'B', fill: 'ضربة', ending: 'خاتمة', start: 'تشغيل', stop: 'إيقاف', sync: 'يبدأ مع أول كورد',
     voice: 'صوت اليد اليمنى', upper: 'اليد اليمنى', lower: 'صوت اليد اليسرى', layer: 'صوتان معًا', lowerOn: 'اليد اليسرى تُسمع أيضًا', chordMode: 'الكوردات', fingered: 'كورد كامل', single: 'بإصبع واحد',
@@ -2015,7 +2238,8 @@ function t(lang, key) {
 
 
 
-const VERSION = '0.2.1';
+
+const VERSION = '0.3.0';
 
 // GM programs to prefer for each built-in voice name when an SF2 is loaded.
 const GM_FOR = { piano: 0, organ: 16, accordion: 21, oud: 24, tambour: 105, strings: 48, brass: 61, sax: 65, flute: 73, bass: 33, lead: 81 };
@@ -2034,6 +2258,7 @@ const settings = Object.assign({
 let audio, engine, seq, midi;
 let styles = [];                 // compiled styles (built-in + imported)
 let importedPack = null;
+let styFiles = [];               // imported Yamaha style files [{ name, buf }]
 const held = new Map();          // raw note → channels it sounds on
 const chordNotes = new Set();    // raw notes in the chord zone
 let lastChord = null;
@@ -2051,7 +2276,8 @@ function boot() {
   if (false) {
     // A new build takes over as soon as it is installed: reload once so the phone never shows a stale version.
     let reloading = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => { if (navigator.serviceWorker.controller && !reloading) { reloading = true; location.reload(); } });
+    const hadController = !!navigator.serviceWorker.controller;   // first visit: the worker claiming the page is not an update
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloading) { reloading = true; location.reload(); } });
     navigator.serviceWorker.register('sw.js').then((reg) => { reg.update().catch(() => {}); }).catch(() => {});
   }
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; renderInstall(); });
@@ -2158,6 +2384,7 @@ async function loadStoredFiles() {
     if (sf2 && sf2.buf) engine.loadSF2(sf2.buf, sf2.name);
   } catch (_) { /* no IndexedDB */ }
   try { importedPack = await store.getFile('styles'); } catch (_) { importedPack = null; }
+  try { styFiles = (await store.getFile('styfiles')) || []; } catch (_) { styFiles = []; }
 }
 
 // ───────────────────────── styles ─────────────────────────
@@ -2171,6 +2398,34 @@ function buildStyles() {
       if (i >= 0) styles[i] = st; else styles.push(st);
     }
   }
+  for (const f of styFiles) {
+    try {
+      const base = f.name.replace(/\.[^.]+$/, '');
+      for (const st of convertStyle(new Uint8Array(f.buf), { id: 'sty:' + base, name: base })) styles.push(st);
+    } catch (err) { console.warn('style file skipped', f.name, err.message); }
+  }
+}
+
+// GM program number → the closest built-in synth preset (used when no SF2 is loaded).
+function synthForGM(gm) {
+  if (gm < 8) return 'piano';
+  if (gm < 16) return 'piano';
+  if (gm === 21 || gm === 22 || gm === 23) return 'accordion';
+  if (gm < 24) return 'organ';
+  if (gm < 32) return 'oud';
+  if (gm < 40) return 'bass';
+  if (gm < 48) return 'strings';
+  if (gm < 56) return 'strings';
+  if (gm < 64) return 'brass';
+  if (gm < 72) return 'sax';
+  if (gm < 80) return 'flute';
+  if (gm < 96) return 'lead';
+  if (gm === 104 || gm === 105 || gm === 106 || gm === 107) return 'tambour';
+  return 'lead';
+}
+function programForGM(gm) {
+  if (engine.hasSF2 && engine.sf2.findPreset(0, gm) >= 0) return { kind: 'sf2', bank: 0, program: gm };
+  return { kind: 'synth', name: synthForGM(gm) };
 }
 
 function currentStyle() { return styles.find((s) => s.id === settings.styleId) || styles[0]; }
@@ -2202,6 +2457,11 @@ function applyStyleVoices(st) {
     const prog = programFor(v[role] || (role === 'bass' ? 'bass' : role === 'upper' ? 'lead' : 'strings'));
     engine.setProgram(CH[role], prog);
     settings.programs[CH[role]] = engine.programKey(CH[role]);
+  }
+  // A Yamaha style brings its own GM programs per part (chord 2 and phrase 2 on channels 6 / 7).
+  for (const [ch, gm] of Object.entries(st.gmPrograms || {})) {
+    engine.setProgram(+ch, programForGM(gm));
+    settings.programs[ch] = engine.programKey(+ch);
   }
   for (const ch of [CH.drums, CH.perc]) {
     const kit = engine.hasSF2 && engine.sf2.findPreset(128, 0) >= 0 ? { kind: 'sf2', bank: 128, program: 0 } : { kind: 'synth', name: 'kit' };
@@ -2287,6 +2547,8 @@ function bindUI() {
   $('styleFile').addEventListener('change', importStyles);
   $('styleExport').addEventListener('click', () => { const o = $('styleExportOut'); o.hidden = !o.hidden; o.textContent = JSON.stringify(STYLE_PACK, null, 1); });
   $('styleRemove').addEventListener('click', async () => { await store.deleteFile('styles'); importedPack = null; buildStyles(); selectStyle(settings.styleId); renderSettings(); });
+  $('styFile').addEventListener('change', importSty);
+  $('styRemove').addEventListener('click', async () => { await store.deleteFile('styfiles'); styFiles = []; buildStyles(); selectStyle(settings.styleId); renderSettings(); });
   document.querySelectorAll('input[data-bus]').forEach((r) => r.addEventListener('input', () => {
     const v = +r.value; settings.bus[r.dataset.bus] = v; persist();
     r.dataset.bus === 'master' ? audio.setMaster(v) : audio.setBus(r.dataset.bus, v);
@@ -2401,6 +2663,28 @@ async function importStyles(e) {
   e.target.value = '';
 }
 
+async function importSty(e) {
+  const files = [...e.target.files];
+  if (!files.length) return;
+  const added = [], bad = [];
+  for (const file of files) {
+    try {
+      const buf = await file.arrayBuffer();
+      convertStyle(new Uint8Array(buf), { id: 'x', name: 'x' });   // parse once so a bad file is refused here
+      styFiles = styFiles.filter((f) => f.name !== file.name);
+      styFiles.push({ name: file.name, buf });
+      added.push(file.name.replace(/\.[^.]+$/, ''));
+    } catch (err) { bad.push(`${file.name}: ${err.message}`); }
+  }
+  try { await store.putFile('styfiles', styFiles); } catch (_) { /* no IndexedDB */ }
+  buildStyles();
+  if (added.length) selectStyle('sty:' + added[0]);
+  renderSettings();
+  if (bad.length) toast(`${t(settings.lang, 'error')}: ${bad.slice(0, 2).join(' · ')}`, 6000);
+  else toast(`${t(settings.lang, 'imported')}: ${added.join(', ')}`);
+  e.target.value = '';
+}
+
 // ───────────────────────── rendering ─────────────────────────
 function applyLang() {
   const lang = settings.lang;
@@ -2413,8 +2697,9 @@ function applyLang() {
 function renderAll() { renderStyles(); renderStatus(); renderTransport(); renderVoices(); renderRegs(); renderKeyboard(); }
 
 function renderStyles() {
-  const boxes = { sudan: $('sudanChips'), west: $('westChips') };
+  const boxes = { sudan: $('sudanChips'), west: $('westChips'), yamaha: $('yamahaChips') };
   for (const b of Object.values(boxes)) b.innerHTML = '';
+  $('yamahaGrp').hidden = !styles.some((s) => s.group === 'yamaha');
   for (const st of styles) {
     const b = document.createElement('button');
     b.className = 'btn' + (st.id === settings.styleId ? ' on' : '');
@@ -2494,6 +2779,8 @@ function renderSettings() {
   $('sf2Info').textContent = engine.hasSF2 ? `${engine.sf2.name} — ${engine.sf2.presets.length} presets` : t(settings.lang, 'noSF2');
   $('sf2Remove').hidden = !engine.hasSF2;
   $('styleRemove').hidden = !importedPack;
+  $('styRemove').hidden = !styFiles.length;
+  $('styInfo').textContent = styFiles.length ? styFiles.map((f) => f.name).join(', ') : t(settings.lang, 'noSty');
   const pv = $('partVoices');
   pv.innerHTML = '';
   for (const role of ['bass', 'chord', 'pad', 'phrase', 'drums', 'perc']) {

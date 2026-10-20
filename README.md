@@ -7,7 +7,7 @@
 - **Sudanese set:** Tum Tum (6/8), Daloka · Sayra (4/4), Mardoum (6/8), Jarari (6/8), Karachi (2/4), Dalib, Haqiba — built from published descriptions of each rhythm (`docs/CONTENT.md` has the sources). **Western:** Pop, Rock, Ballad, Reggae, Slow 6/8. Each has intro, main A/B, fill, ending.
 - **Live controls:** start/stop, start-with-first-chord, fill, A/B, tempo (dotted-quarter display for 6/8), transpose, split point, eight saved setups.
 - **Stays up on stage:** the screen stays on while the app is open (Wake Lock), the sequencer clock runs in a Worker so Chrome's timer throttling cannot stall a bar, and audio/MIDI/wake lock re-arm when you switch back to the app.
-- **Open content:** import your own `.sf2` banks and style packs (`.json`); export the built-in styles to edit them.
+- **Open content:** import your own `.sf2` banks, style packs (`.json`) and **Yamaha style files** (`.sty` / `.prs` / `.sst` from any PSR / Tyros / Genos, SFF1 or SFF2); export the built-in styles to edit them.
 - **Arabic (RTL) and English.**
 
 ## Use it on Android
@@ -31,6 +31,10 @@ Without a keyboard the on-screen keys work everywhere (touch, multi-finger). On 
 | **A / B** | Switches variation through a fill. |
 | **END** | Plays the ending on the next bar and stops. |
 | Setups 1–8 | Tap to load, hold to save the whole setup (style, tempo, voices, split, mixer). |
+
+## Yamaha styles
+
+⚙ → *Import Yamaha styles* takes any number of `.sty` files (copy them to the phone first). Each gives a style with Intro, Main A/B, Fill, Ending; a style with Main C/D also gives a second "(C/D)" entry. The CASM section decides how each part follows your chord. ORG 24 `.Set` files and Korg Pa `.STY` files are closed formats and cannot be imported (`docs/CONTENT.md`).
 
 ## Sound banks
 

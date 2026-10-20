@@ -3,6 +3,7 @@ import { detectChord, transposeNote, chordName, CHORD_TYPES } from '../js/chord.
 import { compileStyle, lintPack, noteNumber } from '../js/styledsl.js';
 import { STYLE_PACK } from '../js/styles.js';
 import { Sequencer } from '../js/sequencer.js';
+import { parseSMF, parseCASM, convertStyle } from '../js/sty.js';
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.log('FAIL', msg); } };
@@ -146,6 +147,79 @@ function makeSeq() {
   ok(played.length === 0 && !seq.playing, 'sync start waits');
   seq.start();
   ok(seq.playing && !seq.syncArmed, 'start clears sync arm');
+}
+
+// ── Yamaha style import: a synthetic SFF1 file (SMF0 + markers + CASM) ──
+function vlq(n) { const out = [n & 0x7f]; n >>= 7; while (n) { out.unshift((n & 0x7f) | 0x80); n >>= 7; } return out; }
+function be32(n) { return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]; }
+function makeSty({ root = 0, ntt = 1 } = {}) {
+  const div = 480;
+  const ev = [];
+  const push = (dt, ...bytes) => ev.push(...vlq(dt), ...bytes);
+  const marker = (dt, name) => push(dt, 0xff, 0x06, name.length, ...[...name].map((c) => c.charCodeAt(0)));
+  marker(0, 'SFF1'); marker(0, 'SInt');
+  push(0, 0xff, 0x51, 3, 0x07, 0xa1, 0x20);          // 120 bpm
+  push(0, 0xff, 0x58, 4, 4, 2, 24, 8);               // 4/4
+  push(0, 0xc0 | 10, 33);                             // bass program 33 on channel 11
+  push(0, 0xc0 | 11, 21);                             // chord 1 program 21 (accordion)
+  marker(div * 4, 'Main A');                          // 1 bar: kick on 1 and 3, bass root+5th, chord on 2 and 4
+  push(0, 0x99, 36, 100); push(0, 0x9a, 36 + root, 90);                                   // beat 1: kick + bass root
+  push(div / 2, 0x89, 36, 0); push(div / 2, 0x8a, 36 + root, 0);
+  push(0, 0x9b, 60 + root, 80); push(0, 0x9b, 64 + root, 80); push(0, 0x9b, 67 + root, 80); // beat 2: chord
+  push(div / 2, 0x8b, 60 + root, 0); push(0, 0x8b, 64 + root, 0); push(0, 0x8b, 67 + root, 0);
+  push(div / 2, 0x99, 36, 100); push(0, 0x9a, 43 + root, 90);                              // beat 3: kick + bass fifth
+  push(div / 2, 0x89, 36, 0); push(0, 0x8a, 43 + root, 0);
+  push(div / 2, 0x9b, 60 + root, 80); push(div / 2, 0x8b, 60 + root, 0);                   // beat 4: chord
+  marker(div / 2, 'Fill In AA');
+  push(0, 0x99, 38, 100); push(div * 4, 0x89, 38, 0);
+  marker(0, 'Ending A');
+  push(0, 0x99, 49, 100); push(div * 4, 0x89, 49, 0);
+  push(0, 0xff, 0x2f, 0);
+  const smf = [...'MThd'].map((c) => c.charCodeAt(0)).concat(be32(6), [0, 0, 0, 1, div >> 8, div & 255], [...'MTrk'].map((c) => c.charCodeAt(0)), be32(ev.length), ev);
+  const ctab = (src, name, dest, nttv) => { const n = name.padEnd(8).slice(0, 8); return [...'Ctab'].map((c) => c.charCodeAt(0)).concat(be32(27), [src, ...[...n].map((c) => c.charCodeAt(0)), dest, 0, 0x0f, 0xff, 0x07, 0xff, 0xff, 0xff, 0xff, root, 2, 0, nttv, 6, 0, 127, 1, 0]); };
+  const sdec = [...'Sdec'].map((c) => c.charCodeAt(0)).concat(be32(6), [...'Main A'].map((c) => c.charCodeAt(0)));
+  const cseg = sdec.concat(ctab(9, 'Rhythm2', 9, 0), ctab(10, 'Bass', 10, ntt), ctab(11, 'Chord1', 11, 2));
+  const casmBody = [...'CSEG'].map((c) => c.charCodeAt(0)).concat(be32(cseg.length), cseg);
+  const casm = [...'CASM'].map((c) => c.charCodeAt(0)).concat(be32(casmBody.length), casmBody);
+  return new Uint8Array(smf.concat(casm));
+}
+{
+  const bytes = makeSty();
+  const smf = parseSMF(bytes);
+  eq(smf.tempo, 120, 'sty: tempo meta');
+  eq(smf.meter, [4, 4], 'sty: time signature');
+  eq(smf.markers.map((m) => m.name), ['SFF1', 'SInt', 'Main A', 'Fill In AA', 'Ending A'], 'sty: markers');
+  eq(smf.programs[10].program, 33, 'sty: program change read');
+  const casm = parseCASM(bytes, smf.midiEnd, false);
+  eq(casm.parts, ['Main A'], 'sty: Sdec parts');
+  eq([casm.ctabs[10].dest, casm.ctabs[10].ntt, casm.ctabs[11].ntt], [10, 1, 2], 'sty: Ctab dest + NTT');
+  const [st] = convertStyle(bytes, { id: 'sty:test', name: 'Test' });
+  eq(Object.keys(st.parts).sort(), ['ending', 'fillA', 'fillB', 'intro', 'mainA', 'mainB'], 'sty: all six Daloka parts exist');
+  eq(st.parts.mainA.bars, 1, 'sty: Main A = 1 bar');
+  eq(st.parts.mainB.events.length, st.parts.mainA.events.length, 'sty: missing Main B falls back to Main A');
+  eq(st.parts.fillA.events.map((e) => e.n), [38], 'sty: Fill In AA → fillA');
+  eq(st.parts.ending.events.map((e) => e.n), [49], 'sty: Ending A → ending');
+  eq(st.parts.fillB.events.length, 1, 'sty: missing Fill In BB falls back to Fill In AA');
+  eq(st.parts.intro.events.length, st.parts.mainA.events.filter((e) => e.t < 4).length, 'sty: missing intro = one bar of main');
+  const bass = st.parts.mainA.events.filter((e) => e.track === 'bass').map((e) => [e.t, e.n]);
+  eq(bass, [[0, 36], [2, 43]], 'sty: bass notes on beats 1 and 3, ticks → beats');
+  eq(st.tracks.drums.transpose, 'none', 'sty: rhythm channel is never transposed');
+  eq(st.tracks.bass.transpose, 'chord', 'sty: bass follows the chord');
+  eq(st.gmPrograms, { 2: 33, 3: 21 }, 'sty: GM programs land on Daloka channels');
+  ok(!st.tracks.pad && !st.tracks.phrase, 'sty: silent channels are dropped');
+  // Recorded over F (root 5): the pattern is shifted back to C before the chord re-map.
+  const [stF] = convertStyle(makeSty({ root: 5 }), { id: 'f', name: 'F' });
+  eq(stF.parts.mainA.events.filter((e) => e.track === 'bass').map((e) => e.n), [36, 43], 'sty: source root F folded back to C');
+  // The imported style runs in the sequencer and follows a chord.
+  const { seq, played, advance } = makeSeq();
+  seq.setStyle(st); seq.setTempo(120); seq.setChord({ root: 7, type: 'min' }); seq.start();
+  for (let i = 0; i < 100; i++) advance(0.05);
+  const bassPlayed = played.filter((e) => e.ch === 2).map((e) => e.n);
+  ok(bassPlayed.length >= 2 && bassPlayed.every((n) => [31, 38].includes(n)), `sty: imported bass follows G minor (${bassPlayed.slice(0, 4)})`);
+  ok(played.some((e) => e.ch === 3 && e.n % 12 === 10), 'sty: chord track plays the minor third (Bb over Gm)');
+  ok(convertStyle(makeSty({ ntt: 0 }), { id: 'b', name: 'b' })[0].tracks.bass.transpose === 'none', 'sty: NTT bypass → no transposition');
+  let threw = false; try { convertStyle(new Uint8Array([1, 2, 3, 4]), {}); } catch (_) { threw = true; }
+  ok(threw, 'sty: garbage is refused');
 }
 
 console.log(`${pass} passed, ${fail} failed`);

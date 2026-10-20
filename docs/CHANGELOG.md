@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 — 2026-10-20
+- **Yamaha style import** (`js/sty.js`): any PSR / Tyros / Genos style file (.sty, .prs, .sst; SFF1 and SFF2) plays as a Daloka style — SMF0 sections by marker (Intro, Main A/B, Fill In AA/BB, Ending; Main C/D + Fill CC/DD become a second "(C/D)" style), CASM Ctab for the source chord and the transposition table, GM program changes on the part channels (chord 2 / phrase 2 on channels 6 / 7). Settings → *Import Yamaha styles*; files persist in IndexedDB; a "Yamaha styles" group on the main screen.
+- ORG 24 (Sofeh) `.Set` files were examined and are a closed format (own binary, rhythms in a private block, no MIDI inside); they are not supported. Details in `docs/CONTENT.md`.
+- Fix: the self-update reload from 0.2.1 also fired on a first visit; it now only reloads when an older worker was in control.
+
 ## 0.2.1 — 2026-10-20
 - Updates reach the phone: a new build reloads the page once as soon as its service worker takes over, and the install fetch bypasses the HTTP cache; the version is shown on the start screen.
 
