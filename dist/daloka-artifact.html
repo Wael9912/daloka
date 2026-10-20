@@ -178,6 +178,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); min-height: 32px; 
       <div class="grp"><label data-i18n="sudanese">Sudanese</label><div id="sudanChips" class="chips"></div></div>
       <div class="grp"><label data-i18n="western">Western</label><div id="westChips" class="chips"></div></div>
       <div class="grp" id="yamahaGrp" hidden><label data-i18n="yamahaGroup">Yamaha styles</label><div id="yamahaChips" class="chips"></div></div>
+      <div class="grp" id="orgGrp" hidden><label data-i18n="orgGroup">ORG 24 set</label><div id="orgChips" class="chips"></div></div>
     </section>
 
     <section class="row transport">
@@ -275,6 +276,14 @@ input[type=range] { width: 100%; accent-color: var(--accent); min-height: 32px; 
         <button id="styleRemove" class="btn" data-i18n="removeStyles">Remove imported styles</button>
       </div>
       <pre id="styleExportOut" class="export" hidden></pre>
+
+      <h3 data-i18n="orgSet">ORG 24 set</h3>
+      <p id="orgInfo" class="muted"></p>
+      <p class="muted" data-i18n="orgHelp"></p>
+      <div class="actions">
+        <label class="btn file"><span data-i18n="importOrg">Import ORG 24 set (.set)</span><input id="orgFile" type="file" accept=".set,.Set,application/octet-stream"></label>
+        <button id="orgRemove" class="btn" data-i18n="removeOrg">Remove set</button>
+      </div>
 
       <h3 data-i18n="yamahaStyles">Yamaha styles</h3>
       <p id="styInfo" class="muted"></p>
@@ -1169,6 +1178,240 @@ function convertStyle(bytes, { id = 'sty', name = 'Style' } = {}) {
 
 
 
+// ───── js/orgset.js ─────
+// ORG 24 / Sofeh Music Studio ".Set" reader → Daloka styles + sampled instruments.
+// Pure logic, no browser APIs (node runs it in the tests).
+//
+// Reverse-engineered 2026-10-20 from two sets (format versions 1.2.8 and 1.4.6):
+//  • The file is a stream of objects tagged  int32 len | "Name\r<version>\r" .
+//  • The first tags are the set's INSTRUMENTS (the tag is the instrument name).
+//    After a header of varying length comes a chain of SAMPLE records:
+//      u8 root note | 32-byte name block (0x20 + text) | u16 rate | u8 bits(16) | u8 channels |
+//      u32 rate | u32 0 | u32 frames | u32 0 | u32 volume | u32 0 | u32 0 | u32 cents |
+//      u32 loopFlag(2 = loop) | u32 loopStart | u32 loopEnd | 4×u32 0 | PCM int16 LE
+//  • "Normal", "Master", "Up 1..3", "Low" are keyboard setups, then one "Rhythm" object:
+//    eight TRACK records (Wave, Bass, Acc. 1–5, Drum), then PATTERN objects tagged with the
+//    track name ("Bass", "Acc. 1", "Drum", "Percussion"): a 535-byte header whose first u32 is the
+//    PART id and whose byte 6 is the track type, then NOTE rows of 24 bytes:
+//      i32 kind (2 = on, 1 = off) | u32 id | i32 note | i32 velocity | i32 time | i32 duration
+//    Times are ticks, 1000 ticks = one bar.
+//  • A PART TABLE near the end: records  partId | ownerId | 32-byte name ("Variation 1", "Intro 1",
+//    "Fill 1" …) | u8 type | 3 flags | u32 0 | u32 length in ticks | u32 link (next part) .
+
+const TICKS_PER_BAR = 1000;
+const TRACK_FOR_TYPE = { 8: 'bass', 9: 'drums', 10: 'perc', 11: 'acc1', 12: 'acc2', 13: 'acc3', 14: 'acc4', 15: 'acc5' };
+const DALOKA_TRACK = {
+  bass: { role: 'bass', channel: 2 }, acc1: { role: 'chord', channel: 3 }, acc2: { role: 'chord', channel: 6 },
+  acc3: { role: 'pad', channel: 4 }, acc4: { role: 'phrase', channel: 5 }, acc5: { role: 'phrase', channel: 7 },
+  drums: { role: 'drums', channel: 9 }, perc: { role: 'perc', channel: 10 },
+};
+
+const le32 = (b, i) => (b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)) >>> 0;
+const lei32 = (b, i) => b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24);
+const le16 = (b, i) => b[i] | (b[i + 1] << 8);
+function txt(b, i, n) { let s = ''; for (let k = 0; k < n; k++) { const c = b[i + k]; if (!c) break; s += String.fromCharCode(c); } return s; }
+function nameBlock(b, i) { return txt(b, i + 1, 31).trim(); }   // 0x20 + up to 31 chars
+
+function isOrgSet(bytes) { const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes); return txt(b, 0, 12) === 'Music Studio'; }
+
+/** Every tagged object: { off (of the int32 len), name, len, body (offset of the first payload byte) }. */
+function scanTags(b, version) {
+  const tags = [];
+  const v = [...('\r' + version + '\r')].map((c) => c.charCodeAt(0));
+  const n = b.length - v.length;
+  outer: for (let i = 0; i < n; i++) {
+    if (b[i] !== 13) continue;
+    for (let k = 1; k < v.length; k++) if (b[i + k] !== v[k]) continue outer;
+    // name runs back from i; the int32 before the name must equal name length + tag length
+    for (let k = 0; k <= 40; k++) {
+      const s = i - k;
+      if (s < 4) break;
+      const want = k + v.length;
+      if (le32(b, s - 4) === want) {
+        let ok = true;
+        for (let q = s; q < i; q++) if (b[q] < 32 || b[q] > 126) { ok = false; break; }
+        if (ok) { tags.push({ off: s - 4, name: txt(b, s, k), len: want, body: s + want }); }
+        break;
+      }
+    }
+  }
+  return tags;
+}
+
+function sampleAt(b, o) {
+  // o = offset of the root byte
+  if (o + 97 > b.length || b[o + 1] !== 0x20) return null;
+  const rate = le16(b, o + 33), bits = b[o + 35], channels = b[o + 36], rate2 = le32(b, o + 37);
+  if (bits !== 16 || (channels !== 1 && channels !== 2) || rate !== rate2 || rate < 6000 || rate > 96000) return null;
+  const frames = lei32(b, o + 45);
+  if (frames <= 0 || o + 97 + frames * channels * 2 > b.length) return null;
+  return {
+    root: b[o], name: nameBlock(b, o + 1), rate, channels, frames,
+    volume: lei32(b, o + 53), cents: lei32(b, o + 65), loop: lei32(b, o + 69) === 2, loopStart: lei32(b, o + 73), loopEnd: lei32(b, o + 77),
+    dataOffset: o + 97, dataBytes: frames * channels * 2,
+  };
+}
+
+function samplesBetween(b, from, to) {
+  const out = [];
+  let o = null;
+  for (let q = from; q < Math.min(from + 4000, to - 97); q++) if (sampleAt(b, q)) { o = q; break; }
+  while (o !== null && o < to - 97) {
+    const s = sampleAt(b, o);
+    if (!s) break;
+    out.push(s);
+    o = s.dataOffset + s.dataBytes;
+  }
+  return out;
+}
+
+function noteRows(b, o, limit) {
+  const rows = [];
+  while (o + 24 <= limit) {
+    const kind = lei32(b, o), note = lei32(b, o + 8), vel = lei32(b, o + 12), t = lei32(b, o + 16), d = lei32(b, o + 20);
+    if (!(kind === 1 || kind === 2) || note < 0 || note > 127 || t < 0 || t > 1e7) break;
+    if (kind === 2 && (vel <= 0 || vel > 255 || d <= 0)) break;
+    if (kind === 2) rows.push({ note, vel, t, d });
+    o += 24;
+  }
+  return rows;
+}
+
+/** Parse a whole .Set. Returns instruments, the rhythm (tracks, parts, patterns) and the setup names. */
+function parseOrgSet(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (!isOrgSet(b)) throw new Error('org24');
+  let head = ''; for (let i = 0; i < Math.min(120, b.length); i++) head += String.fromCharCode(b[i] || 32);
+  const ver = /\r(\d+\.\d+\.\d+)\r/.exec(head);
+  if (!ver) throw new Error('org24');
+  const tags = scanTags(b, ver[1]);
+  const idx = (name) => tags.findIndex((t) => t.name === name);
+  const rhythmTag = idx('Rhythm');
+  const setupNames = new Set(['Normal', 'Master', 'Up 1', 'Up 2', 'Up 3', 'Low']);
+  // Instruments: every tag before the setups / Rhythm whose region holds a sample chain.
+  const instruments = [];
+  const limitIdx = tags.findIndex((t) => setupNames.has(t.name) || t.name === 'Rhythm');
+  const endOfInstruments = limitIdx >= 0 ? tags[limitIdx].off : b.length;
+  for (let k = 0; k < (limitIdx >= 0 ? limitIdx : tags.length); k++) {
+    const t = tags[k];
+    const next = k + 1 < tags.length ? tags[k + 1].off : endOfInstruments;
+    const samples = samplesBetween(b, t.body, next);
+    if (samples.length) instruments.push({ index: instruments.length, name: t.name, samples, isKit: samples.length >= 6 && samples.every((s) => !s.loop) && new Set(samples.map((s) => s.root)).size === samples.length && samples.some((s) => s.root < 48) });
+  }
+  // Rhythm
+  let rhythm = null;
+  if (rhythmTag >= 0) {
+    const tracks = {};
+    const patterns = [];
+    const trackNames = { Bass: 'bass', 'Acc. 1': 'acc1', 'Acc. 2': 'acc2', 'Acc. 3': 'acc3', 'Acc. 4': 'acc4', 'Acc. 5': 'acc5', Drum: 'drums', Percussion: 'perc' };
+    let seenPatternArea = false;
+    for (let k = rhythmTag + 1; k < tags.length; k++) {
+      const t = tags[k];
+      const next = k + 1 < tags.length ? tags[k + 1].off : b.length;
+      const tr = trackNames[t.name];
+      if (!tr) continue;
+      if (!seenPatternArea && !tracks[tr] && next - t.body > 2000) {
+        tracks[tr] = { instrumentHint: b[t.body + 153], instrumentHint2: b[t.body + 12] };
+        continue;
+      }
+      seenPatternArea = true;
+      const partId = le32(b, t.body);
+      const type = le16(b, t.body + 6);
+      const rows = noteRows(b, t.body + 535, next);
+      if (rows.length) patterns.push({ partId, track: TRACK_FOR_TYPE[type] || tr, type, instrumentHint: b[t.body + 12], rows });
+    }
+    // Part table: records "partId | owner | nameBlock | type ..." — find them by the known part names.
+    const parts = [];
+    const names = ['Variation 1', 'Variation 2', 'Variation 3', 'Variation 4', 'Intro 1', 'Intro 2', 'Intro 3', 'Fill 1', 'Fill 2', 'Fill 3', 'Fill 4', 'Break', 'Ending 1', 'Ending 2', 'Ending 3'];
+    const wanted = new Set(patterns.map((p) => p.partId));
+    const start = tags[rhythmTag].off;
+    for (let o = start; o < b.length - 60; o++) {
+      if (b[o] !== 0x20 || b[o + 1] < 65 || b[o + 1] > 90) continue;
+      const nm = txt(b, o + 1, 31);
+      if (!names.includes(nm)) continue;
+      const partId = le32(b, o - 8);
+      if (!wanted.has(partId)) continue;
+      parts.push({ id: partId, name: nm, type: b[o + 32], lengthTicks: lei32(b, o + 40), link: le32(b, o + 44) });
+    }
+    rhythm = { tracks, patterns, parts, ticksPerBar: TICKS_PER_BAR };
+  }
+  return { version: ver[1], instruments, rhythm, tagCount: tags.length };
+}
+
+/** Pick, per track, an instrument of the set whose roots cover the pattern's notes. */
+function assignInstruments(parsed) {
+  const { instruments, rhythm } = parsed;
+  const choice = {};
+  if (!rhythm) return choice;
+  const notesOf = {};
+  for (const p of rhythm.patterns) { (notesOf[p.track] = notesOf[p.track] || []).push(...p.rows.map((r) => r.note)); }
+  const fits = (inst, notes) => {
+    const rs = inst.samples.map((s) => s.root); const lo = Math.min(...rs), hi = Math.max(...rs);
+    const inside = notes.filter((n) => n >= lo - 2 && n <= hi + 2).length / notes.length;
+    const near = notes.filter((n) => n >= lo - 9 && n <= hi + 9).length / notes.length;
+    return inside + 0.5 * near - 0.3 * ((hi - lo) / 127);   // a tight multisample beats a kit that spans the keyboard
+  };
+  for (const [track, notes] of Object.entries(notesOf)) {
+    if (!notes.length) continue;
+    const hint = rhythm.tracks[track] && rhythm.tracks[track].instrumentHint;
+    const drumTrack = track === 'drums' || track === 'perc';
+    const keyword = { bass: /bass|باص/i, drums: /drum|kit|درام|طقم/i, perc: /kit|perc|var|dal|tabl|bongo|daf|طبل|دلوك/i }[track];
+    const candidates = instruments.filter((inst) => inst.name !== '-').map((inst) => ({
+      inst,
+      score: fits(inst, notes) + (inst.index === hint ? 0.5 : 0) + (drumTrack && inst.isKit ? 0.3 : 0) + (!drumTrack && inst.isKit ? -0.6 : 0)
+        + (keyword && keyword.test(inst.name) ? 0.4 : 0) + (inst.samples.length >= 4 ? 0.1 : 0),
+    }));
+    candidates.sort((a, c) => c.score - a.score);
+    if (candidates.length) choice[track] = candidates[0].inst.index;
+  }
+  return choice;
+}
+
+const PART_SETS = [
+  { suffix: '', label: '', intro: ['Intro 1', 'Intro 2', 'Intro 3'], mainA: ['Variation 1'], mainB: ['Variation 2', 'Variation 1'], fillA: ['Fill 1', 'Fill 2'], fillB: ['Fill 2', 'Fill 1'], ending: ['Ending 1', 'Ending 2', 'Ending 3', 'Intro 2', 'Fill 1'] },
+  { suffix: '-34', label: ' (3/4)', intro: ['Intro 2', 'Intro 3', 'Intro 1'], mainA: ['Variation 3'], mainB: ['Variation 4', 'Variation 3'], fillA: ['Fill 3', 'Fill 4', 'Fill 1'], fillB: ['Fill 4', 'Fill 3', 'Fill 2'], ending: ['Ending 2', 'Ending 3', 'Ending 1', 'Fill 3'] },
+];
+
+/**
+ * Compiled Daloka styles from a parsed set. meter: [6, 8] (1000 ticks = one bar, triplet feel) by default.
+ * Pitched tracks are played as written (the set's own key) and re-mapped by the chord with 'chord'.
+ */
+function orgStyles(parsed, { id = 'org', name = 'ORG set', meter = [6, 8], tempo = 100, instrumentChoice = null } = {}) {
+  const r = parsed.rhythm;
+  if (!r || !r.patterns.length) return [];
+  const choice = instrumentChoice || assignInstruments(parsed);
+  const beatsPerBar = (meter[0] * 4) / meter[1];
+  const byName = {};
+  for (const p of r.parts) byName[p.name] = p;
+  const patsOf = (partId) => r.patterns.filter((p) => p.partId === partId);
+  const tracks = {};
+  for (const p of r.patterns) {
+    const d = DALOKA_TRACK[p.track];
+    if (d) tracks[p.track] = { role: d.role, channel: d.channel, transpose: d.role === 'drums' || d.role === 'perc' ? 'none' : 'chord', gate: 1, orgInstrument: choice[p.track] };
+  }
+  const build = (set) => {
+    const mainPart = set.mainA.map((n) => byName[n]).find(Boolean);
+    if (!mainPart) return null;
+    const parts = {};
+    for (const key of ['mainA', 'mainB', 'intro', 'fillA', 'fillB', 'ending']) {
+      const part = set[key].map((n) => byName[n]).find(Boolean) || mainPart;
+      const bars = Math.max(1, Math.round(part.lengthTicks / TICKS_PER_BAR));
+      const events = [];
+      for (const pat of patsOf(part.id)) {
+        for (const row of pat.rows) {
+          if (row.t >= part.lengthTicks) continue;
+          events.push({ track: pat.track, t: (row.t / TICKS_PER_BAR) * beatsPerBar, n: row.note, v: Math.min(127, Math.round(row.vel > 127 ? row.vel / 2 : row.vel)), d: Math.max(0.05, (row.d / TICKS_PER_BAR) * beatsPerBar) });
+        }
+      }
+      events.sort((a, c) => a.t - c.t);
+      parts[key] = { bars, beats: bars * beatsPerBar, events };
+    }
+    return { id: id + set.suffix, name: name + set.label, name_ar: name + set.label, group: 'org', imported: true, org: true, tempo, meter, steps: meter[1] === 8 ? meter[0] * 2 : meter[0] * 4, beatsPerBar, voices: {}, tracks, parts, partNames: r.parts.map((p) => p.name) };
+  };
+  return PART_SETS.map(build).filter(Boolean);
+}
+
+
 // ───── js/sequencer.js ─────
 // Sample-accurate (clock-arithmetic) style sequencer with a look-ahead scheduler.
 // Pure logic: it takes a clock { now() } and a sink { noteOn(ch, n, v, t, d) }.
@@ -1926,6 +2169,114 @@ class SF2Player {
 }
 
 
+// ───── js/orgsampler.js ─────
+// Sampler for the instruments of an ORG 24 / Music Studio .Set (see orgset.js).
+// Each instrument is a multisample: the sample whose root is nearest the played
+// note is pitched to it. PCM is decoded lazily, per sample, the first time it sounds.
+
+const ORG_MAX_VOICES = 48;
+
+class OrgSampler {
+  constructor(ctx, routeFor) {
+    this.ctx = ctx;
+    this.routeFor = routeFor;
+    this.set = null;            // parsed set (orgset.js)
+    this.bytes = null;          // Uint8Array of the whole file
+    this.name = '';
+    this.buffers = new Map();   // dataOffset → AudioBuffer
+    this.programs = {};         // channel → instrument index
+    this.voices = [];
+    this.sustain = {};
+    this.bendSemis = {};
+  }
+
+  load(parsed, bytes, name = 'set') { this.set = parsed; this.bytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes); this.name = name; this.buffers.clear(); }
+  unload() { this.set = null; this.bytes = null; this.buffers.clear(); this.programs = {}; }
+  get loaded() { return !!this.set; }
+  get instruments() { return this.set ? this.set.instruments : []; }
+
+  setProgram(ch, index) { this.programs[ch] = index; }
+
+  _buffer(s) {
+    let buf = this.buffers.get(s.dataOffset);
+    if (buf) return buf;
+    buf = this.ctx.createBuffer(s.channels, s.frames, s.rate);
+    const b = this.bytes;
+    for (let c = 0; c < s.channels; c++) {
+      const data = buf.getChannelData(c);
+      let o = s.dataOffset + c * 2;
+      const step = s.channels * 2;
+      for (let i = 0; i < s.frames; i++, o += step) {
+        const v = b[o] | (b[o + 1] << 8);
+        data[i] = (v & 0x8000 ? v - 0x10000 : v) / 32768;
+      }
+    }
+    this.buffers.set(s.dataOffset, buf);
+    return buf;
+  }
+
+  _pick(inst, note) {
+    let best = null, bd = 1e9;
+    for (const s of inst.samples) { const d = Math.abs(s.root - note); if (d < bd) { bd = d; best = s; } }
+    return best;
+  }
+
+  noteOn(ch, note, vel, when = this.ctx.currentTime, dur = null) {
+    const inst = this.set && this.set.instruments[this.programs[ch]];
+    if (!inst) return;
+    const s = this._pick(inst, note);
+    if (!s) return;
+    const ctx = this.ctx;
+    const buf = this._buffer(s);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const cents = s.cents > -100 && s.cents < 100 ? s.cents : 0;
+    const baseRate = Math.pow(2, (note - s.root + cents / 100) / 12);
+    src.playbackRate.value = baseRate * Math.pow(2, (this.bendSemis[ch] || 0) / 12);
+    if (s.loop && s.loopEnd > s.loopStart && s.loopEnd <= s.frames) { src.loop = true; src.loopStart = s.loopStart / s.rate; src.loopEnd = s.loopEnd / s.rate; }
+    const amp = ctx.createGain();
+    const v = Math.max(0.05, vel / 127);
+    const peak = (0.3 + 0.7 * v) * Math.min(1.5, (s.volume || 100) / 100);
+    amp.gain.setValueAtTime(peak, when);
+    src.connect(amp).connect(this.routeFor(ch));
+    src.start(when);
+    if (!src.loop) src.stop(when + buf.duration / baseRate + 0.05);
+    const voice = { ch, note, src, amp, baseRate, released: false, sustained: false };
+    src.onended = () => { const i = this.voices.indexOf(voice); if (i >= 0) this.voices.splice(i, 1); try { amp.disconnect(); } catch (_) { /* ignore */ } };
+    this.voices.push(voice);
+    while (this.voices.length > ORG_MAX_VOICES) this._release(this.voices.shift(), ctx.currentTime, true);
+    if (dur !== null) this._release(voice, when + dur);
+  }
+
+  noteOff(ch, note, when = this.ctx.currentTime) {
+    for (const v of this.voices) if (v.ch === ch && v.note === note && !v.released) { if (this.sustain[ch]) v.sustained = true; else this._release(v, when); }
+  }
+
+  setSustain(ch, on) {
+    this.sustain[ch] = on;
+    if (!on) { const now = this.ctx.currentTime; for (const v of this.voices) if (v.ch === ch && v.sustained && !v.released) this._release(v, now); }
+  }
+
+  setBend(ch, semis) {
+    this.bendSemis[ch] = semis;
+    const now = this.ctx.currentTime, f = Math.pow(2, semis / 12);
+    for (const v of this.voices) if (v.ch === ch && !v.released) v.src.playbackRate.setTargetAtTime(v.baseRate * f, now, 0.005);
+  }
+
+  allOff(ch = null) { const now = this.ctx.currentTime; for (const v of this.voices) if (ch === null || v.ch === ch) this._release(v, now, true); }
+
+  _release(v, when, fast = false) {
+    if (!v || v.released) return;
+    v.released = true;
+    const r = fast ? 0.03 : 0.14;
+    const g = v.amp.gain;
+    if (typeof g.cancelAndHoldAtTime === 'function') g.cancelAndHoldAtTime(when); else g.cancelScheduledValues(when);
+    g.setTargetAtTime(0.0001, when, r / 4);
+    try { v.src.stop(when + r + 0.05); } catch (_) { /* already stopped */ }
+  }
+}
+
+
 // ───── js/midi.js ─────
 // Web MIDI input: every connected input (USB-MIDI via OTG on Android Chrome).
 // Fires { note, vel, on, ch } for keys; sustain, pitch bend and program change.
@@ -2044,6 +2395,7 @@ function createAudio() {
 
 
 
+
 const CH = { upper: 0, lower: 1, bass: 2, chord: 3, pad: 4, phrase: 5, drums: 9, perc: 10 };
 
 class Engine {
@@ -2051,6 +2403,7 @@ class Engine {
     this.audio = audio;
     this.synth = new Synth(audio.ctx, audio.routeFor);
     this.sf2 = new SF2Player(audio.ctx, audio.routeFor);
+    this.org = new OrgSampler(audio.ctx, audio.routeFor);
     this.programs = {};
     for (const ch of Object.values(CH)) this.setProgram(ch, { kind: 'synth', name: ch === 9 || ch === 10 ? 'kit' : 'lead' });
   }
@@ -2058,12 +2411,20 @@ class Engine {
   get hasSF2() { return !!this.sf2.font; }
 
   loadSF2(arrayBuffer, name) { return this.sf2.load(arrayBuffer, name); }
+  get hasOrg() { return this.org.loaded; }
+  loadOrg(parsed, bytes, name) { this.org.load(parsed, bytes, name); }
 
   /** All selectable programs: built-in presets first, then the SF2 presets. */
   programList(forDrums = false) {
     const out = [];
     if (forDrums) out.push({ kind: 'synth', name: 'kit', label: 'Built-in kit', label_ar: 'الطقم المدمج' });
     else for (const [name, p] of Object.entries(SYNTH_PRESETS)) out.push({ kind: 'synth', name, label: p.label, label_ar: p.label_ar });
+    if (this.org.loaded) {
+      for (const inst of this.org.instruments) {
+        if (forDrums !== !!inst.isKit) continue;
+        out.push({ kind: 'org', index: inst.index, label: `${inst.name} (set)`, label_ar: `${inst.name} (سيت)` });
+      }
+    }
     if (this.sf2.font) {
       for (const p of this.sf2.presets) {
         if (forDrums ? p.bank !== 128 : p.bank === 128) continue;
@@ -2074,7 +2435,10 @@ class Engine {
   }
 
   setProgram(ch, prog) {
-    if (prog.kind === 'sf2') {
+    if (prog.kind === 'org') {
+      if (!this.org.loaded || !this.org.instruments[prog.index]) return false;
+      this.org.setProgram(ch, prog.index);
+    } else if (prog.kind === 'sf2') {
       const idx = this.sf2.findPreset(prog.bank, prog.program);
       if (idx < 0) return false;
       this.sf2.setProgram(ch, idx);
@@ -2087,22 +2451,23 @@ class Engine {
 
   programKey(ch) {
     const p = this.programs[ch];
-    return p ? (p.kind === 'sf2' ? `sf2:${p.bank}:${p.program}` : `synth:${p.name}`) : 'synth:lead';
+    return p ? (p.kind === 'sf2' ? `sf2:${p.bank}:${p.program}` : p.kind === 'org' ? `org:${p.index}` : `synth:${p.name}`) : 'synth:lead';
   }
 
   static parseKey(key) {
     const parts = key.split(':');
     if (parts[0] === 'sf2') return { kind: 'sf2', bank: +parts[1], program: +parts[2] };
+    if (parts[0] === 'org') return { kind: 'org', index: +parts[1] };
     return { kind: 'synth', name: parts[1] };
   }
 
-  _inst(ch) { return (this.programs[ch] && this.programs[ch].kind === 'sf2') ? this.sf2 : this.synth; }
+  _inst(ch) { const k = this.programs[ch] && this.programs[ch].kind; return k === 'sf2' ? this.sf2 : k === 'org' ? this.org : this.synth; }
 
   noteOn(ch, n, v, t, d = null) { if (n >= 0 && n <= 127) this._inst(ch).noteOn(ch, n, v, t, d); }
   noteOff(ch, n, t) { this._inst(ch).noteOff(ch, n, t); }
-  setSustain(ch, on) { this.synth.setSustain(ch, on); this.sf2.setSustain(ch, on); }
-  setBend(ch, semis) { this.synth.setBend(ch, semis); this.sf2.setBend(ch, semis); }
-  allOff(ch = null) { this.synth.allOff(ch); this.sf2.allOff(ch); }
+  setSustain(ch, on) { this.synth.setSustain(ch, on); this.sf2.setSustain(ch, on); this.org.setSustain(ch, on); }
+  setBend(ch, semis) { this.synth.setBend(ch, semis); this.sf2.setBend(ch, semis); this.org.setBend(ch, semis); }
+  allOff(ch = null) { this.synth.allOff(ch); this.sf2.allOff(ch); this.org.allOff(ch); }
 }
 
 
@@ -2174,7 +2539,10 @@ const STRINGS = {
     midiUnsupported: 'This browser has no Web MIDI. Use Chrome on Android with the keyboard on a USB OTG cable.',
     rhythm: 'Rhythm', sudanese: 'Sudanese', western: 'Western', yamahaGroup: 'Yamaha styles',
     yamahaStyles: 'Yamaha styles', importSty: 'Import styles (.sty / .set)',
-    fmt_org24: 'this is an ORG 24 (Sofeh) set, a closed format Daloka cannot read yet', fmt_korg: 'this is a Korg Pa style, a closed format Daloka cannot read', fmt_notYamaha: 'not a Yamaha style file', removeSty: 'Remove Yamaha styles', noSty: 'No Yamaha styles imported',
+    orgGroup: 'ORG 24 set', orgSet: 'ORG 24 set', importOrg: 'Import ORG 24 set (.set)', removeOrg: 'Remove set', noOrg: 'No set imported', instruments: 'instruments', rhythmParts: 'rhythm parts',
+    orgLoading: 'Reading the set… (a big file takes a few seconds)', orgNotStored: 'The set plays now but could not be stored offline (too large for this phone); import it again next time.',
+    orgHelp: 'An ORG 24 / Music Studio .Set gives Daloka its sampled instruments (pick them as any voice) and its rhythm as a style (Intro, Variation 1/2 = A/B, Fill 1/2, and Variation 3/4 as a second style). Fix a track\'s instrument under Sounds if the guess is wrong. The set\'s tempo is not stored in the file: set it yourself.',
+    fmt_org24: 'this is an ORG 24 (Sofeh) set: import it under “ORG 24 set”, not as a Yamaha style', fmt_isYamaha: 'this is a Yamaha style file: import it under “Yamaha styles”', fmt_notOrg: 'not an ORG 24 .Set file', fmt_korg: 'this is a Korg Pa style, a closed format Daloka cannot read', fmt_notYamaha: 'not a Yamaha style file', removeSty: 'Remove Yamaha styles', noSty: 'No Yamaha styles imported',
     yamahaHelp: 'Any Yamaha PSR / Tyros / Genos style file (.sty, .prs, .sst) plays here: Intro, Main A/B (and C/D as a second style), Fill, Ending, with the chord following from its CASM. Sudanese Yamaha sets are shared as .sty files; copy them to the phone and pick them here. ORG 24 .Set files are a closed format and cannot be read.',
     style: 'Style', tempo: 'Tempo', transpose: 'Transpose', split: 'Split point', chord: 'Chord',
     intro: 'INTRO', mainA: 'A', mainB: 'B', fill: 'FILL', ending: 'END', start: 'START', stop: 'STOP', sync: 'Start with first chord',
@@ -2202,7 +2570,10 @@ const STRINGS = {
     midiUnsupported: 'هذا المتصفح لا يدعم Web MIDI. افتح الصفحة في كروم على أندرويد ووصّل الكيبورد بكابل OTG.',
     rhythm: 'الإيقاع', sudanese: 'سوداني', western: 'غربي', yamahaGroup: 'إيقاعات ياماها',
     yamahaStyles: 'إيقاعات ياماها', importSty: 'استيراد إيقاعات (.sty / .set)',
-    fmt_org24: 'هذا سيت ORG 24 (Sofeh)، صيغة مغلقة لا يقرأها دلوكة بعد', fmt_korg: 'هذا إيقاع Korg Pa، صيغة مغلقة لا يقرأها دلوكة', fmt_notYamaha: 'ليس ملف إيقاع ياماها', removeSty: 'إزالة إيقاعات ياماها', noSty: 'لا توجد إيقاعات ياماها مستوردة',
+    orgGroup: 'سيت ORG 24', orgSet: 'سيت ORG 24', importOrg: 'استيراد سيت ORG 24 ‏(.set)', removeOrg: 'إزالة السيت', noOrg: 'لا يوجد سيت مستورد', instruments: 'آلة', rhythmParts: 'أجزاء الإيقاع',
+    orgLoading: 'جاري قراءة السيت… (الملف الكبير يأخذ ثوانٍ)', orgNotStored: 'السيت يعمل الآن لكن تعذّر حفظه بلا إنترنت (كبير على هذا الهاتف)؛ استورده مرة أخرى في المرة القادمة.',
+    orgHelp: 'سيت ORG 24 / Music Studio ‏(.Set) يعطي دلوكة آلاته المسجّلة (اخترها كأي صوت) وإيقاعه كستايل (مقدمة، Variation 1/2 = A/B، ضربة 1/2، وVariation 3/4 كإيقاع ثانٍ). إن أخطأ التخمين في آلة مسار، صحّحها من «بنوك الصوت». سرعة الإيقاع غير محفوظة في الملف: اضبطها بنفسك.',
+    fmt_org24: 'هذا سيت ORG 24 (Sofeh): استورده من «سيت ORG 24» لا كإيقاع ياماها', fmt_isYamaha: 'هذا ملف إيقاع ياماها: استورده من «إيقاعات ياماها»', fmt_notOrg: 'ليس ملف سيت ORG 24', fmt_korg: 'هذا إيقاع Korg Pa، صيغة مغلقة لا يقرأها دلوكة', fmt_notYamaha: 'ليس ملف إيقاع ياماها', removeSty: 'إزالة إيقاعات ياماها', noSty: 'لا توجد إيقاعات ياماها مستوردة',
     yamahaHelp: 'أي ملف إيقاع ياماها PSR / Tyros / Genos ‏(.sty ‏.prs ‏.sst) يعمل هنا: مقدمة، أساسي A/B (وC/D كإيقاع ثانٍ)، ضربة، خاتمة، والكورد يتبعه من CASM. السيتات السودانية لياماها تُتداول كملفات .sty؛ انسخها إلى الهاتف واخترها هنا. ملفات ORG 24 ‏(.Set) صيغة مغلقة ولا يمكن قراءتها.',
     style: 'الإيقاع', tempo: 'السرعة', transpose: 'نقل الطبقة', split: 'نقطة الفصل', chord: 'الكورد',
     intro: 'مقدمة', mainA: 'A', mainB: 'B', fill: 'ضربة', ending: 'خاتمة', start: 'تشغيل', stop: 'إيقاف', sync: 'يبدأ مع أول كورد',
@@ -2245,7 +2616,8 @@ function t(lang, key) {
 
 
 
-const VERSION = '0.3.1';
+
+const VERSION = '0.4.0';
 
 // GM programs to prefer for each built-in voice name when an SF2 is loaded.
 const GM_FOR = { piano: 0, organ: 16, accordion: 21, oud: 24, tambour: 105, strings: 48, brass: 61, sax: 65, flute: 73, bass: 33, lead: 81 };
@@ -2265,6 +2637,7 @@ let audio, engine, seq, midi;
 let styles = [];                 // compiled styles (built-in + imported)
 let importedPack = null;
 let styFiles = [];               // imported Yamaha style files [{ name, buf }]
+let orgSet = null;               // { name, buf, parsed } — the imported ORG 24 set
 const held = new Map();          // raw note → channels it sounds on
 const chordNotes = new Set();    // raw notes in the chord zone
 let lastChord = null;
@@ -2391,6 +2764,10 @@ async function loadStoredFiles() {
   } catch (_) { /* no IndexedDB */ }
   try { importedPack = await store.getFile('styles'); } catch (_) { importedPack = null; }
   try { styFiles = (await store.getFile('styfiles')) || []; } catch (_) { styFiles = []; }
+  try {
+    const o = await store.getFile('orgset');
+    if (o && o.buf) loadOrg(o.name, o.buf);
+  } catch (err) { console.warn('org set not loaded', err); }
 }
 
 // ───────────────────────── styles ─────────────────────────
@@ -2410,6 +2787,17 @@ function buildStyles() {
       for (const st of convertStyle(new Uint8Array(f.buf), { id: 'sty:' + base, name: base })) styles.push(st);
     } catch (err) { console.warn('style file skipped', f.name, err.message); }
   }
+  if (orgSet && orgSet.parsed) {
+    const base = orgSet.name.replace(/\.[^.]+$/, '');
+    for (const st of orgStyles(orgSet.parsed, { id: 'org:' + base, name: base, tempo: settings.orgTempo || 165 })) styles.push(st);
+  }
+}
+
+function loadOrg(name, buf) {
+  const bytes = new Uint8Array(buf);
+  const parsed = parseOrgSet(bytes);
+  orgSet = { name, buf, parsed };
+  engine.loadOrg(parsed, bytes, name);
 }
 
 // GM program number → the closest built-in synth preset (used when no SF2 is loaded).
@@ -2464,6 +2852,11 @@ function applyStyleVoices(st) {
     engine.setProgram(CH[role], prog);
     settings.programs[CH[role]] = engine.programKey(CH[role]);
   }
+  // An ORG set style plays the set's own instruments on every track.
+  for (const tr of Object.values(st.tracks || {})) {
+    if (tr.orgInstrument !== undefined && engine.setProgram(tr.channel, { kind: 'org', index: tr.orgInstrument })) settings.programs[tr.channel] = engine.programKey(tr.channel);
+  }
+  if (st.org) { persist(); return; }
   // A Yamaha style brings its own GM programs per part (chord 2 and phrase 2 on channels 6 / 7).
   for (const [ch, gm] of Object.entries(st.gmPrograms || {})) {
     engine.setProgram(+ch, programForGM(gm));
@@ -2554,6 +2947,8 @@ function bindUI() {
   $('styleExport').addEventListener('click', () => { const o = $('styleExportOut'); o.hidden = !o.hidden; o.textContent = JSON.stringify(STYLE_PACK, null, 1); });
   $('styleRemove').addEventListener('click', async () => { await store.deleteFile('styles'); importedPack = null; buildStyles(); selectStyle(settings.styleId); renderSettings(); });
   $('styFile').addEventListener('change', importSty);
+  $('orgFile').addEventListener('change', importOrg);
+  $('orgRemove').addEventListener('click', async () => { await store.deleteFile('orgset'); orgSet = null; engine.org.unload(); buildStyles(); selectStyle(settings.styleId); renderSettings(); renderVoices(); });
   $('styRemove').addEventListener('click', async () => { await store.deleteFile('styfiles'); styFiles = []; buildStyles(); selectStyle(settings.styleId); renderSettings(); });
   document.querySelectorAll('input[data-bus]').forEach((r) => r.addEventListener('input', () => {
     const v = +r.value; settings.bus[r.dataset.bus] = v; persist();
@@ -2691,6 +3086,30 @@ async function importSty(e) {
   e.target.value = '';
 }
 
+async function importOrg(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  toast(t(settings.lang, 'orgLoading'), 20000);
+  try {
+    const buf = await file.arrayBuffer();
+    if (!isOrgSet(buf)) {
+      const kind = sniffFormat(new Uint8Array(buf));
+      throw new Error(kind === 'yamaha' ? 'fmt_isYamaha' : 'fmt_notOrg');
+    }
+    loadOrg(file.name, buf);
+    try { await store.putFile('orgset', { name: file.name, buf }); } catch (_) { toast(t(settings.lang, 'orgNotStored'), 6000); }
+    buildStyles();
+    const first = styles.find((s) => s.org);
+    if (first) selectStyle(first.id);
+    renderSettings(); renderVoices();
+    toast(`${t(settings.lang, 'imported')}: ${file.name} — ${orgSet.parsed.instruments.length} ${t(settings.lang, 'instruments')}`, 5000);
+  } catch (err) {
+    const key = String(err.message || err);
+    toast(`${t(settings.lang, 'error')}: ${t(settings.lang, key) !== key ? t(settings.lang, key) : key}`, 8000);
+  }
+  e.target.value = '';
+}
+
 // ───────────────────────── rendering ─────────────────────────
 function applyLang() {
   const lang = settings.lang;
@@ -2703,9 +3122,10 @@ function applyLang() {
 function renderAll() { renderStyles(); renderStatus(); renderTransport(); renderVoices(); renderRegs(); renderKeyboard(); }
 
 function renderStyles() {
-  const boxes = { sudan: $('sudanChips'), west: $('westChips'), yamaha: $('yamahaChips') };
+  const boxes = { sudan: $('sudanChips'), west: $('westChips'), yamaha: $('yamahaChips'), org: $('orgChips') };
   for (const b of Object.values(boxes)) b.innerHTML = '';
   $('yamahaGrp').hidden = !styles.some((s) => s.group === 'yamaha');
+  $('orgGrp').hidden = !styles.some((s) => s.group === 'org');
   for (const st of styles) {
     const b = document.createElement('button');
     b.className = 'btn' + (st.id === settings.styleId ? ' on' : '');
@@ -2786,6 +3206,11 @@ function renderSettings() {
   $('sf2Remove').hidden = !engine.hasSF2;
   $('styleRemove').hidden = !importedPack;
   $('styRemove').hidden = !styFiles.length;
+  $('orgRemove').hidden = !orgSet;
+  if (orgSet && orgSet.parsed) {
+    const pr = orgSet.parsed;
+    $('orgInfo').textContent = `${orgSet.name} (v${pr.version}) — ${pr.instruments.length} ${t(settings.lang, 'instruments')}: ${pr.instruments.map((i) => i.name).join(', ')}` + (pr.rhythm ? ` · ${t(settings.lang, 'rhythmParts')}: ${pr.rhythm.parts.map((p) => p.name).join(', ') || '—'}` : '');
+  } else $('orgInfo').textContent = t(settings.lang, 'noOrg');
   $('styInfo').textContent = styFiles.length ? styFiles.map((f) => f.name).join(', ') : t(settings.lang, 'noSty');
   const pv = $('partVoices');
   pv.innerHTML = '';

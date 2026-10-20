@@ -4,6 +4,7 @@ import { compileStyle, lintPack, noteNumber } from '../js/styledsl.js';
 import { STYLE_PACK } from '../js/styles.js';
 import { Sequencer } from '../js/sequencer.js';
 import { parseSMF, parseCASM, convertStyle } from '../js/sty.js';
+import { parseOrgSet, orgStyles, assignInstruments, isOrgSet } from '../js/orgset.js';
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.log('FAIL', msg); } };
@@ -220,6 +221,67 @@ function makeSty({ root = 0, ntt = 1 } = {}) {
   ok(convertStyle(makeSty({ ntt: 0 }), { id: 'b', name: 'b' })[0].tracks.bass.transpose === 'none', 'sty: NTT bypass → no transposition');
   let threw = false; try { convertStyle(new Uint8Array([1, 2, 3, 4]), {}); } catch (_) { threw = true; }
   ok(threw, 'sty: garbage is refused');
+}
+
+// ── ORG 24 .Set reader: a synthetic set with one instrument (2 samples) and a rhythm (2 parts) ──
+function le32(n) { return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255]; }
+function tag(name, ver = '1.2.8') { const s = [...(name + '\r' + ver + '\r')].map((c) => c.charCodeAt(0)); return [...le32(s.length), ...s]; }
+function nameBlock(nm) { const out = [0x20]; for (let i = 0; i < 31; i++) out.push(i < nm.length ? nm.charCodeAt(i) : 0); return out; }
+function sample(root, nm, frames, { loop = false, channels = 1 } = {}) {
+  const hdr = [...le32(0), ...le32(frames), ...le32(0), ...le32(100), ...le32(0), ...le32(0), ...le32(0), ...le32(loop ? 2 : 0), ...le32(0), ...le32(frames - 1), ...le32(0), ...le32(0), ...le32(0), ...le32(0)];
+  const pcm = []; for (let i = 0; i < frames * channels; i++) { const v = Math.round(Math.sin(i / 5) * 8000); pcm.push(v & 255, (v >> 8) & 255); }
+  return [root, ...nameBlock(nm), 48000 & 255, 48000 >> 8, 16, channels, ...le32(48000), ...hdr, ...pcm];
+}
+function row(note, vel, t, d) { return [...le32(2), ...le32(0x1234), ...le32(note), ...le32(vel), ...le32(t), ...le32(d), ...le32(1), ...le32(0x1234), ...le32(note), ...le32(-1 >>> 0), ...le32(t + d), ...le32(-1 >>> 0)]; }
+function pattern(trackName, partId, type, rows) { const h = new Array(535).fill(0); le32(partId).forEach((v, i) => { h[i] = v; }); h[4] = 1; h[6] = type; h[12] = 3; return [...tag(trackName), ...h, ...rows.flat()]; }
+function partRec(id, nm, type, len, link) { return [...le32(id), ...le32(0x219af380), ...nameBlock(nm), type, 1, 1, 1, ...le32(0), ...le32(len), ...le32(link), ...le32(0xff), ...le32(0), ...le32(0x71), ...le32(1)]; }
+function makeSet() {
+  const head = [...'Music Studio Music'].map((c) => c.charCodeAt(0)); while (head.length < 36) head.push(0); head.push(...le32(7), ...[...'\r1.2.8\r'].map((c) => c.charCodeAt(0))); while (head.length < 420) head.push(0);
+  const trackRec = () => new Array(2508).fill(0);
+  const bytes = [
+    ...head,
+    ...tag('Oud Test'), ...new Array(130).fill(0), ...sample(60, 'c4', 300), ...sample(72, 'c5', 200, { loop: true }),
+    ...tag('Kit Test'), ...new Array(130).fill(0), ...sample(36, 'kick', 100), ...sample(38, 'snare', 100), ...sample(42, 'hat', 50), ...sample(49, 'tak', 50), ...sample(50, 'dum', 50), ...sample(51, 'clap', 50), ...sample(52, 'x', 50),
+    ...tag('Normal'), ...new Array(240).fill(0), ...tag('Master'), ...new Array(240).fill(0),
+    ...tag('Rhythm'), ...trackRec(), ...tag('Wave'), ...trackRec(), ...tag('Bass'), ...trackRec(), ...tag('Acc. 1'), ...trackRec(), ...tag('Drum'), ...trackRec(),
+    ...pattern('Bass', 0x1111, 8, [row(36, 120, 0, 250), row(43, 120, 500, 250)]),
+    ...pattern('Acc. 1', 0x1111, 11, [row(60, 100, 0, 200), row(64, 100, 0, 200), row(67, 100, 0, 200)]),
+    ...pattern('Drum', 0x1111, 9, [row(36, 127, 0, 100), row(38, 110, 500, 100)]),
+    ...pattern('Bass', 0x2222, 8, [row(36, 120, 0, 250)]),
+    ...pattern('Drum', 0x3333, 9, [row(49, 127, 0, 100), row(49, 127, 250, 100), row(49, 127, 500, 100), row(49, 127, 750, 100)]),
+    ...new Array(64).fill(0),
+    ...partRec(0x1111, 'Variation 1', 0x20, 2000, 0), ...partRec(0x2222, 'Variation 2', 0x21, 1000, 0), ...partRec(0x3333, 'Fill 1', 0x30, 1000, 0xfffffffe), ...partRec(0x9999, 'Intro 1', 0x10, 1000, 0x1111),
+    ...new Array(64).fill(0),
+  ];
+  return new Uint8Array(bytes);
+}
+{
+  const bytes = makeSet();
+  ok(isOrgSet(bytes), 'org: header recognised');
+  const p = parseOrgSet(bytes);
+  eq(p.version, '1.2.8', 'org: version read');
+  eq(p.instruments.map((i) => [i.name, i.samples.length, i.isKit]), [['Oud Test', 2, false], ['Kit Test', 7, true]], 'org: instruments + sample chains walked, kit detected');
+  const oud = p.instruments[0];
+  eq(oud.samples.map((s) => [s.root, s.name, s.frames, s.loop, s.rate]), [[60, 'c4', 300, false, 48000], [72, 'c5', 200, true, 48000]], 'org: sample header fields');
+  eq(bytes[oud.samples[0].dataOffset] | (bytes[oud.samples[0].dataOffset + 1] << 8), Math.round(Math.sin(0) * 8000) & 0xffff, 'org: PCM starts right after the 97-byte record head');
+  eq(Object.keys(p.rhythm.tracks).sort(), ['acc1', 'bass', 'drums'], 'org: track records (Wave ignored)');
+  eq(p.rhythm.patterns.map((x) => [x.track, x.partId, x.rows.length]), [['bass', 0x1111, 2], ['acc1', 0x1111, 3], ['drums', 0x1111, 2], ['bass', 0x2222, 1], ['drums', 0x3333, 4]], 'org: patterns by part and track with note rows');
+  eq(p.rhythm.parts.map((x) => [x.name, x.lengthTicks, x.type]), [['Variation 1', 2000, 0x20], ['Variation 2', 1000, 0x21], ['Fill 1', 1000, 0x30]], 'org: part table (only parts that have patterns)');
+  eq(assignInstruments(p), { bass: 0, acc1: 0, drums: 1 }, 'org: bass/chords → the oud multisample, drums → the kit');
+  const [st] = orgStyles(p, { id: 'org:t', name: 'T' });
+  eq([st.parts.mainA.bars, st.parts.mainB.bars, st.parts.fillA.bars, st.parts.intro.bars], [2, 1, 1, 2], 'org: 1000 ticks = one bar; missing intro falls back to Variation 1');
+  const bass = st.parts.mainA.events.filter((e) => e.track === 'bass').map((e) => [e.t, e.n]);
+  eq(bass, [[0, 36], [1.5, 43]], 'org: ticks → beats of 6/8 (500 ticks = 1.5 beats)');
+  eq(st.tracks.drums.transpose, 'none', 'org: drums never transposed');
+  eq(st.tracks.acc1.orgInstrument, 0, 'org: track carries its set instrument');
+  ok(st.parts.fillA.events.every((e) => e.n === 49) && st.parts.fillA.events.length === 4, 'org: Fill 1 → fillA');
+  const { seq, played, advance } = makeSeq();
+  seq.setStyle(st); seq.setTempo(120); seq.setChord({ root: 2, type: 'min' }); seq.start();
+  for (let i = 0; i < 80; i++) advance(0.05);
+  ok(played.some((e) => e.ch === 3 && e.n % 12 === 5), 'org: chord track follows D minor (F natural)');
+  ok(played.some((e) => e.ch === 9 && e.n === 36), 'org: kick plays unchanged on the drum channel');
+  let threw = false; try { parseOrgSet(new Uint8Array([77, 84, 104, 100])); } catch (_) { threw = true; }
+  ok(threw, 'org: a non-set is refused');
 }
 
 console.log(`${pass} passed, ${fail} failed`);

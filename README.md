@@ -7,7 +7,7 @@
 - **Sudanese set:** Tum Tum (6/8), Daloka · Sayra (4/4), Mardoum (6/8), Jarari (6/8), Karachi (2/4), Dalib, Haqiba — built from published descriptions of each rhythm (`docs/CONTENT.md` has the sources). **Western:** Pop, Rock, Ballad, Reggae, Slow 6/8. Each has intro, main A/B, fill, ending.
 - **Live controls:** start/stop, start-with-first-chord, fill, A/B, tempo (dotted-quarter display for 6/8), transpose, split point, eight saved setups.
 - **Stays up on stage:** the screen stays on while the app is open (Wake Lock), the sequencer clock runs in a Worker so Chrome's timer throttling cannot stall a bar, and audio/MIDI/wake lock re-arm when you switch back to the app.
-- **Open content:** import your own `.sf2` banks, style packs (`.json`) and **Yamaha style files** (`.sty` / `.prs` / `.sst` from any PSR / Tyros / Genos, SFF1 or SFF2); export the built-in styles to edit them.
+- **Open content:** import an **ORG 24 set (`.set`)** for its sampled Sudanese instruments and its rhythm, your own `.sf2` banks, style packs (`.json`) and **Yamaha style files** (`.sty` / `.prs` / `.sst` from any PSR / Tyros / Genos, SFF1 or SFF2); export the built-in styles to edit them.
 - **Arabic (RTL) and English.**
 
 ## Use it on Android
@@ -31,6 +31,10 @@ Without a keyboard the on-screen keys work everywhere (touch, multi-finger). On 
 | **A / B** | Switches variation through a fill. |
 | **END** | Plays the ending on the next bar and stops. |
 | Setups 1–8 | Tap to load, hold to save the whole setup (style, tempo, voices, split, mixer). |
+
+## ORG 24 sets
+
+⚙ → *Import ORG 24 set*: a Sofeh ORG 2024 / Music Studio `.Set` file (copy it to the phone first; a 200 MB set reads in about a second and is kept offline). Its instruments appear in every sound list as "… (set)" and its rhythm appears under *ORG 24 set* on the main screen: Intro 1 = INTRO, Variation 1/2 = A/B, Fill 1/2 = FILL, Variation 3/4 as a second entry. The file does not carry a tempo, so set it with the tempo buttons. If a track got the wrong instrument, change it under Sounds. The format is documented in `docs/CONTENT.md`.
 
 ## Yamaha styles
 

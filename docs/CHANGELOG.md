@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0 — 2026-10-20
+- **ORG 24 / Music Studio `.Set` import** (`js/orgset.js` + `js/orgsampler.js`): the format was reverse-engineered from the owner's `Motaso.Set` (v1.2.8) and a Sofeh sample set (v1.4.6). Daloka reads the set's sampled instruments (16-bit PCM multisamples with root notes, loops and tuning) and plays them as voices and as the rhythm's tracks, and reads the rhythm (track records, patterns of 24-byte note rows per part, the part table) into a style: Intro 1 → intro, Variation 1/2 → A/B, Fill 1/2 → fills, Variation 3/4 as a second style. Settings → *ORG 24 set*; the set is kept in IndexedDB. `docs/CONTENT.md` has the byte layout.
+- Unknown so far: the set's tempo (not found in the file; default ♩. 110, adjust by hand), the Wave (audio-loop) track, the rhythm's private percussion sounds (the Percussion track plays the best-fitting kit of the set), per-instrument envelopes.
+
 ## 0.3.1 — 2026-10-20
 - The style picker accepts `.set` / `.mid` too and sniffs the real format: a Yamaha file under any name imports; an ORG 24 or Korg file is named as such in the error instead of a generic failure.
 
