@@ -1,0 +1,17 @@
+{
+  "name": "Daloka — Sudanese arranger keyboard",
+  "short_name": "Daloka",
+  "description": "Turn a USB-MIDI keyboard into a Sudanese and Western arranger. Offline, free, open source.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#14110f",
+  "theme_color": "#14110f",
+  "lang": "en",
+  "dir": "auto",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

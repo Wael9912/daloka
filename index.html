@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#14110f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Daloka</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div id="gate" class="gate">
+    <div class="gate-card">
+      <img src="icons/icon-192.png" alt="" width="72" height="72">
+      <h1 data-i18n="app">Daloka</h1>
+      <p data-i18n="subtitle">Sudanese arranger keyboard</p>
+      <button id="gateBtn" class="btn big" data-i18n="tapToStart">Tap to start audio</button>
+    </div>
+  </div>
+
+  <header class="top">
+    <div class="brand"><span data-i18n="app">Daloka</span></div>
+    <div class="top-right">
+      <button id="midiBtn" class="chip" title="MIDI"><span class="dot"></span><span id="midiLabel" data-i18n="midiNone">No keyboard</span></button>
+      <button id="langBtn" class="chip" data-i18n="language">العربية</button>
+      <button id="settingsBtn" class="chip" aria-label="Settings">⚙</button>
+    </div>
+  </header>
+
+  <main class="perf">
+    <section class="row styles-row">
+      <div id="styleChips" class="chips"></div>
+    </section>
+
+    <section class="row status-row">
+      <div class="stat">
+        <label data-i18n="tempo">Tempo</label>
+        <div class="stepper"><button data-act="tempo-" class="btn sq">−</button><output id="tempoVal">120</output><button data-act="tempo+" class="btn sq">+</button></div>
+      </div>
+      <div class="stat">
+        <label data-i18n="transpose">Transpose</label>
+        <div class="stepper"><button data-act="trans-" class="btn sq">−</button><output id="transVal">0</output><button data-act="trans+" class="btn sq">+</button></div>
+      </div>
+      <div class="stat">
+        <label data-i18n="split">Split</label>
+        <div class="stepper"><button data-act="split-" class="btn sq">−</button><output id="splitVal">F#3</output><button data-act="split+" class="btn sq">+</button></div>
+      </div>
+      <div class="stat chord-stat">
+        <label data-i18n="chord">Chord</label>
+        <output id="chordVal">—</output>
+      </div>
+      <div class="beat" id="beat"><i></i><i></i><i></i><i></i></div>
+    </section>
+
+    <section class="row transport">
+      <button id="introBtn" class="btn part" data-i18n="intro">INTRO</button>
+      <button id="mainABtn" class="btn part" data-i18n="mainA">MAIN A</button>
+      <button id="mainBBtn" class="btn part" data-i18n="mainB">MAIN B</button>
+      <button id="fillBtn" class="btn part" data-i18n="fill">FILL</button>
+      <button id="endingBtn" class="btn part" data-i18n="ending">ENDING</button>
+      <button id="syncBtn" class="btn part" data-i18n="sync">SYNC START</button>
+      <button id="startBtn" class="btn start" data-i18n="start">START</button>
+    </section>
+
+    <section class="row voices">
+      <div class="voice">
+        <label data-i18n="upper">Upper</label>
+        <select id="upperSel"></select>
+      </div>
+      <div class="voice">
+        <label data-i18n="lower">Lower</label>
+        <select id="lowerSel"></select>
+      </div>
+      <button id="lowerOnBtn" class="btn tog" data-i18n="lowerOn">Lower voice on</button>
+      <button id="layerBtn" class="btn tog" data-i18n="layer">Layer</button>
+      <button id="chordModeBtn" class="btn tog on" data-i18n="fingered">Fingered</button>
+      <button id="panicBtn" class="btn tog" data-i18n="panic">All notes off</button>
+    </section>
+
+    <section class="row regs">
+      <label data-i18n="registrations">Setups</label>
+      <div id="regBtns" class="regbtns"></div>
+      <small data-i18n="holdToSave">Hold a slot to save the current setup</small>
+    </section>
+
+    <section class="row keys-row">
+      <button id="keysToggle" class="btn tog" data-i18n="hideKeys">Hide keys</button>
+      <div id="keyboard" class="keyboard"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <dialog id="settings" class="sheet">
+    <div class="sheet-head">
+      <h2 data-i18n="settings">Settings</h2>
+      <button id="closeSettings" class="chip">✕</button>
+    </div>
+    <div class="sheet-body">
+      <h3 data-i18n="sounds">Sounds</h3>
+      <p id="sf2Info" class="muted" data-i18n="noSF2">Built-in sounds</p>
+      <div class="actions">
+        <label class="btn file"><span data-i18n="importSF2">Import SF2</span><input id="sf2File" type="file" accept=".sf2,audio/x-soundfont,application/octet-stream"></label>
+        <button id="sf2Remove" class="btn" data-i18n="removeSF2">Remove sound bank</button>
+      </div>
+      <div class="grid2" id="partVoices"></div>
+
+      <h3 data-i18n="styles">Styles</h3>
+      <div class="actions">
+        <label class="btn file"><span data-i18n="importStyles">Import style pack</span><input id="styleFile" type="file" accept=".json,application/json"></label>
+        <button id="styleExport" class="btn" data-i18n="exportStyles">Export built-in styles</button>
+        <button id="styleRemove" class="btn" data-i18n="removeStyles">Remove imported styles</button>
+      </div>
+      <pre id="styleExportOut" class="export" hidden></pre>
+
+      <h3 data-i18n="mixer">Mixer</h3>
+      <div class="sliders">
+        <label><span data-i18n="keys">Keys</span><input type="range" min="0" max="1" step="0.01" data-bus="keys"></label>
+        <label><span data-i18n="styleVol">Style</span><input type="range" min="0" max="1" step="0.01" data-bus="style"></label>
+        <label><span data-i18n="drumsVol">Drums</span><input type="range" min="0" max="1" step="0.01" data-bus="drums"></label>
+        <label><span data-i18n="master">Master</span><input type="range" min="0" max="1" step="0.01" data-bus="master"></label>
+      </div>
+      <h3 data-i18n="tracks">Style tracks</h3>
+      <div id="trackMutes" class="actions"></div>
+
+      <h3 data-i18n="midi">MIDI</h3>
+      <p id="midiInfo" class="muted"></p>
+      <p class="muted"><span data-i18n="latency">Audio latency</span>: <span id="latencyVal">–</span> ms</p>
+
+      <h3 data-i18n="about">About</h3>
+      <p class="muted" data-i18n="aboutText"></p>
+      <div class="actions">
+        <button id="installBtn" class="btn" data-i18n="install" hidden>Install app</button>
+        <a class="btn" href="https://github.com/" id="repoLink" target="_blank" rel="noopener">GitHub</a>
+      </div>
+      <p class="muted">v<span id="version"></span></p>
+    </div>
+  </dialog>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
