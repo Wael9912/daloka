@@ -13,7 +13,7 @@ origin to install into), everything else is identical to the served app.
 import base64, re, sys, pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-ORDER = ['chord', 'styledsl', 'styles', 'sty', 'orgset', 'sequencer', 'synth', 'sf2', 'orgsampler', 'midi', 'audio', 'engine', 'store', 'i18n', 'app']
+ORDER = ['chord', 'styledsl', 'styles', 'sty', 'orgset', 'sequencer', 'synth', 'sf2', 'orgsampler', 'midi', 'audio', 'engine', 'store', 'i18n', 'catalog', 'sheet', 'app']
 
 def strip_module(src: str) -> str:
     src = re.sub(r'^import\s[^;]*;\s*$', '', src, flags=re.M)

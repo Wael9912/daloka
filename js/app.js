@@ -1,5 +1,6 @@
 // Daloka — app controller. Wires MIDI/screen keys → chord zone + voices,
-// the sequencer transport, setups (registrations), imports and the UI.
+// the sequencer transport, the two pickers (rhythm, sound), setups
+// (registrations), imports and the UI.
 
 import { createAudio } from './audio.js';
 import { Engine, CH } from './engine.js';
@@ -10,29 +11,33 @@ import { compileStyle, lintPack } from './styledsl.js';
 import { convertStyle, sniffFormat } from './sty.js';
 import { parseOrgSet, orgStyles, isOrgSet } from './orgset.js';
 import { detectChord, chordName, NOTE_NAMES } from './chord.js';
+import { orderStyles, stepStyle, styleGroups, soundGroups, flatKeys } from './catalog.js';
+import { ListSheet } from './sheet.js';
 import { t } from './i18n.js';
 import * as store from './store.js';
 
-export const VERSION = '0.4.0';
+export const VERSION = '0.5.0';
 
 // GM programs to prefer for each built-in voice name when an SF2 is loaded.
 const GM_FOR = { piano: 0, organ: 16, accordion: 21, oud: 24, tambour: 105, strings: 48, brass: 61, sax: 65, flute: 73, bass: 33, lead: 81 };
 const TRACK_LABEL = { drums: 'drumsTrack', perc: 'percTrack', bass: 'bassTrack', chord: 'chordTrack', pad: 'padTrack', phrase: 'phraseTrack' };
+const ROLE_OF_CH = { 0: 'upper', 1: 'lower', 2: 'bass', 3: 'chord', 4: 'pad', 5: 'phrase', 6: 'chord', 7: 'phrase', 9: 'drums', 10: 'perc' };
 
 const $ = (id) => document.getElementById(id);
 
 const settings = Object.assign({
   lang: (navigator.language || '').startsWith('ar') ? 'ar' : 'en',
   styleId: 'tumtum', tempo: null, transpose: 0, split: 54, chordMode: 'fingered',
-  lowerOn: false, layer: false, keysShown: true, keepAwake: true, seenHint: false,
+  lowerOn: false, layer: false, keysShown: true, keepAwake: true, seenHint: false, showBuiltin: true, moreOpen: false,
   programs: {}, bus: { keys: 0.8, style: 0.8, drums: 0.8, master: 0.9 }, mute: {},
   regs: [null, null, null, null, null, null, null, null],
 }, store.loadSettings());
 
-let audio, engine, seq, midi;
+let audio, engine, seq, midi, sheet;
 let styles = [];                 // compiled styles (built-in + imported)
 let importedPack = null;
-let styFiles = [];               // imported Yamaha style files [{ name, buf }]
+let styFiles = [];               // imported Yamaha style files [{ name, folder, buf }]
+let sf2Banks = [];               // loaded SF2 banks [{ name, buf }], in engine order
 let orgSet = null;               // { name, buf, parsed } — the imported ORG 24 set
 const held = new Map();          // raw note → channels it sounds on
 const chordNotes = new Set();    // raw notes in the chord zone
@@ -40,12 +45,14 @@ let lastChord = null;
 let deferredInstall = null;
 let wakeLock = null;
 const keyEls = new Map();        // note → on-screen key element
+let sheetMode = null;            // 'rhythm' | { sound: ch } while the list sheet is open
+let sheetStartBtn = null;        // the START/STOP mirrored into the rhythm list
 
 // ───────────────────────── boot ─────────────────────────
 function boot() {
   applyLang();
   $('gateBtn').addEventListener('click', startAudio, { once: true });
-  $('langBtn').addEventListener('click', () => { settings.lang = settings.lang === 'ar' ? 'en' : 'ar'; persist(); applyLang(); renderAll(); });
+  $('langBtn').addEventListener('click', () => { settings.lang = settings.lang === 'ar' ? 'en' : 'ar'; persist(); applyLang(); if (engine) renderAll(); });
   $('version').textContent = VERSION;
   $('gateVersion').textContent = 'v' + VERSION;
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
@@ -118,6 +125,8 @@ async function startAudio() {
   seq.on(onSeqEvent);
   for (const [k, v] of Object.entries(settings.bus)) (k === 'master' ? audio.setMaster(v) : audio.setBus(k, v));
   seq.mute = settings.mute || {};
+  sheet = new ListSheet($('listSheet'));
+  $('listSheet').addEventListener('close', () => { sheetMode = null; sheetStartBtn = null; });
 
   await loadStoredFiles();
   buildStyles();
@@ -155,8 +164,15 @@ async function connectMidi(silent = false) {
 
 async function loadStoredFiles() {
   try {
-    const sf2 = await store.getFile('sf2');
-    if (sf2 && sf2.buf) engine.loadSF2(sf2.buf, sf2.name);
+    let banks = await store.getFile('sf2banks');
+    if (!banks) {
+      // 0.4 kept a single bank under 'sf2': carry it over.
+      const one = await store.getFile('sf2');
+      if (one && one.buf) { banks = [one]; try { await store.putFile('sf2banks', banks); await store.deleteFile('sf2'); } catch (_) { /* keep going */ } }
+    }
+    for (const b of banks || []) {
+      try { engine.loadSF2(b.buf, b.name); sf2Banks.push(b); } catch (err) { console.warn('bank skipped', b.name, err.message); }
+    }
   } catch (_) { /* no IndexedDB */ }
   try { importedPack = await store.getFile('styles'); } catch (_) { importedPack = null; }
   try { styFiles = (await store.getFile('styfiles')) || []; } catch (_) { styFiles = []; }
@@ -180,7 +196,8 @@ function buildStyles() {
   for (const f of styFiles) {
     try {
       const base = f.name.replace(/\.[^.]+$/, '');
-      for (const st of convertStyle(new Uint8Array(f.buf), { id: 'sty:' + base, name: base })) styles.push(st);
+      const id = 'sty:' + (f.folder ? f.folder + '/' : '') + base;
+      for (const st of convertStyle(new Uint8Array(f.buf), { id, name: base })) { st.folder = f.folder || ''; styles.push(st); }
     } catch (err) { console.warn('style file skipped', f.name, err.message); }
   }
   if (orgSet && orgSet.parsed) {
@@ -214,30 +231,36 @@ function synthForGM(gm) {
   return 'lead';
 }
 function programForGM(gm) {
-  if (engine.hasSF2 && engine.sf2.findPreset(0, gm) >= 0) return { kind: 'sf2', bank: 0, program: gm };
+  const hit = engine.findPreset(0, gm);
+  if (hit) return { kind: 'sf2', font: hit.font, bank: 0, program: gm };
   return { kind: 'synth', name: synthForGM(gm) };
+}
+
+/** The rhythm list as the player sees it: own files first, built-ins last (or hidden). */
+function orderedStyles() {
+  const o = orderStyles(styles, { showBuiltin: settings.showBuiltin });
+  return o.length ? o : orderStyles(styles, { showBuiltin: true });   // never an empty list
 }
 
 function currentStyle() { return styles.find((s) => s.id === settings.styleId) || styles[0]; }
 
 function selectStyle(id, { keepPrograms = false } = {}) {
-  const st = styles.find((s) => s.id === id) || styles[0];
+  const st = styles.find((s) => s.id === id) || orderedStyles()[0] || styles[0];
   settings.styleId = st.id;
   seq.setStyle(st);
   settings.tempo = st.tempo;
   if (!keepPrograms) applyStyleVoices(st);
   persist();
-  renderStyles();
+  renderRhythm();
   renderStatus();
-  renderVoices();
+  renderSound();
+  if (sheetMode === 'rhythm') sheet.setActive(st.id);
 }
 
-/** Pick each style voice from the SF2 when it has the GM program, else the built-in. */
+/** Pick each style voice from the banks when one has the GM program, else the built-in. */
 function programFor(voiceName) {
-  if (engine.hasSF2) {
-    const gm = GM_FOR[voiceName];
-    if (gm !== undefined && engine.sf2.findPreset(0, gm) >= 0) return { kind: 'sf2', bank: 0, program: gm };
-  }
+  const gm = GM_FOR[voiceName];
+  if (gm !== undefined) { const hit = engine.findPreset(0, gm); if (hit) return { kind: 'sf2', font: hit.font, bank: 0, program: gm }; }
   return { kind: 'synth', name: voiceName in GM_FOR ? voiceName : 'lead' };
 }
 
@@ -258,8 +281,8 @@ function applyStyleVoices(st) {
     engine.setProgram(+ch, programForGM(gm));
     settings.programs[ch] = engine.programKey(+ch);
   }
+  const kit = engine.findKit() || { kind: 'synth', name: 'kit' };
   for (const ch of [CH.drums, CH.perc]) {
-    const kit = engine.hasSF2 && engine.sf2.findPreset(128, 0) >= 0 ? { kind: 'sf2', bank: 128, program: 0 } : { kind: 'synth', name: 'kit' };
     engine.setProgram(ch, kit);
     settings.programs[ch] = engine.programKey(ch);
   }
@@ -268,7 +291,7 @@ function applyStyleVoices(st) {
 function restorePrograms() {
   for (const [ch, key] of Object.entries(settings.programs)) {
     if (!engine.setProgram(+ch, Engine.parseKey(key))) {
-      engine.setProgram(+ch, +ch === 9 || +ch === 10 ? { kind: 'synth', name: 'kit' } : { kind: 'synth', name: 'lead' });
+      engine.setProgram(+ch, +ch === 9 || +ch === 10 ? (engine.findKit() || { kind: 'synth', name: 'kit' }) : { kind: 'synth', name: 'lead' });
       settings.programs[ch] = engine.programKey(+ch);
     }
   }
@@ -319,6 +342,7 @@ function onSeqEvent(type, data) {
 // ───────────────────────── UI binding ─────────────────────────
 function bindUI() {
   document.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => act(b.dataset.act)));
+  document.querySelectorAll('[data-nav]').forEach((b) => b.addEventListener('click', () => nav(b.dataset.nav)));
   $('startBtn').addEventListener('click', () => { if (seq.playing) seq.stop(); else seq.start(); });
   $('introBtn').addEventListener('click', () => { if (!seq.playing) seq.start({ intro: true }); });
   $('mainABtn').addEventListener('click', () => seq.setVariation('A'));
@@ -326,25 +350,31 @@ function bindUI() {
   $('fillBtn').addEventListener('click', () => seq.fill());
   $('endingBtn').addEventListener('click', () => seq.ending());
   $('syncBtn').addEventListener('click', () => seq.armSyncStart(!seq.syncArmed));
-  $('lowerOnBtn').addEventListener('click', () => { settings.lowerOn = !settings.lowerOn; persist(); renderVoices(); });
-  $('layerBtn').addEventListener('click', () => { settings.layer = !settings.layer; persist(); renderVoices(); });
-  $('chordModeBtn').addEventListener('click', () => { settings.chordMode = settings.chordMode === 'fingered' ? 'single' : 'fingered'; persist(); renderVoices(); });
+  $('lowerOnBtn').addEventListener('click', () => { settings.lowerOn = !settings.lowerOn; persist(); renderSound(); });
+  $('layerBtn').addEventListener('click', () => { settings.layer = !settings.layer; persist(); renderSound(); });
+  $('chordModeBtn').addEventListener('click', () => { settings.chordMode = settings.chordMode === 'fingered' ? 'single' : 'fingered'; persist(); renderSound(); });
   $('panicBtn').addEventListener('click', panic);
-  $('upperSel').addEventListener('change', (e) => setChannelProgram(CH.upper, e.target.value));
-  $('lowerSel').addEventListener('change', (e) => setChannelProgram(CH.lower, e.target.value));
   $('keysToggle').addEventListener('click', () => { settings.keysShown = !settings.keysShown; persist(); renderKeyboard(); });
   $('awakeBtn').addEventListener('click', () => { settings.keepAwake = !settings.keepAwake; persist(); settings.keepAwake ? keepAwake() : releaseAwake(); renderSettings(); });
+  $('moreBtn').addEventListener('click', () => { settings.moreOpen = !settings.moreOpen; persist(); renderMore(); });
+  $('builtinBtn').addEventListener('click', () => { settings.showBuiltin = !settings.showBuiltin; persist(); renderSettings(); renderRhythm(); });
+
+  // The pickers.
+  $('rhythmBtn').addEventListener('click', openRhythmList);
+  $('soundBtn').addEventListener('click', () => openSoundList(CH.upper));
+  $('lowerBtn').addEventListener('click', () => openSoundList(CH.lower));
 
   $('settingsBtn').addEventListener('click', () => { renderSettings(); $('settings').showModal(); });
   $('closeSettings').addEventListener('click', () => $('settings').close());
-  $('sf2File').addEventListener('change', importSF2);
-  $('sf2Remove').addEventListener('click', async () => { await store.deleteFile('sf2'); engine.sf2.font = null; engine.sf2.buffers.clear(); applyStyleVoices(currentStyle()); renderSettings(); renderVoices(); });
+  $('sf2File').addEventListener('change', (e) => importSF2([...e.target.files], e.target));
+  $('sf2Folder').addEventListener('change', (e) => importSF2([...e.target.files].filter((f) => /\.sf2$/i.test(f.name)), e.target));
   $('styleFile').addEventListener('change', importStyles);
   $('styleExport').addEventListener('click', () => { const o = $('styleExportOut'); o.hidden = !o.hidden; o.textContent = JSON.stringify(STYLE_PACK, null, 1); });
   $('styleRemove').addEventListener('click', async () => { await store.deleteFile('styles'); importedPack = null; buildStyles(); selectStyle(settings.styleId); renderSettings(); });
-  $('styFile').addEventListener('change', importSty);
+  $('styFile').addEventListener('change', (e) => importSty([...e.target.files], e.target));
+  $('styFolder').addEventListener('change', (e) => importSty([...e.target.files].filter((f) => /\.(sty|prs|sst|bcs|pst)$/i.test(f.name)), e.target));
   $('orgFile').addEventListener('change', importOrg);
-  $('orgRemove').addEventListener('click', async () => { await store.deleteFile('orgset'); orgSet = null; engine.org.unload(); buildStyles(); selectStyle(settings.styleId); renderSettings(); renderVoices(); });
+  $('orgRemove').addEventListener('click', async () => { await store.deleteFile('orgset'); orgSet = null; engine.org.unload(); buildStyles(); selectStyle(settings.styleId); renderSettings(); renderSound(); });
   $('styRemove').addEventListener('click', async () => { await store.deleteFile('styfiles'); styFiles = []; buildStyles(); selectStyle(settings.styleId); renderSettings(); });
   document.querySelectorAll('input[data-bus]').forEach((r) => r.addEventListener('input', () => {
     const v = +r.value; settings.bus[r.dataset.bus] = v; persist();
@@ -369,7 +399,13 @@ function bindUI() {
   buildKeyboard();
   // Computer keyboard for desktop testing: a s d f g h j k = C D E F G A B C (upper), z x c v b n m = lower octave.
   const map = { z: 48, s: 49, x: 50, d: 51, c: 52, v: 53, g: 54, b: 55, h: 56, n: 57, j: 58, m: 59, q: 60, '2': 61, w: 62, '3': 63, e: 64, r: 65, '5': 66, t: 67, '6': 68, y: 69, '7': 70, u: 71, i: 72 };
-  window.addEventListener('keydown', (e) => { if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return; if (map[e.key] !== undefined) noteOn(map[e.key], 100); if (e.key === ' ') { e.preventDefault(); seq.toggle(); } });
+  window.addEventListener('keydown', (e) => {
+    if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (map[e.key] !== undefined) noteOn(map[e.key], 100);
+    if (e.key === ' ') { e.preventDefault(); seq.toggle(); }
+    if (e.key === 'ArrowDown') nav('style+'); if (e.key === 'ArrowUp') nav('style-');
+    if (e.key === 'ArrowRight') nav('sound+'); if (e.key === 'ArrowLeft') nav('sound-');
+  });
   window.addEventListener('keyup', (e) => { if (map[e.key] !== undefined) noteOff(map[e.key]); });
 }
 
@@ -387,10 +423,66 @@ function act(a) {
   renderKeyboard();
 }
 
+/** ‹ › on the two pickers: step through the same order the lists show. */
+function nav(a) {
+  const dir = a.endsWith('+') ? 1 : -1;
+  if (a.startsWith('style')) {
+    const next = stepStyle(orderedStyles(), settings.styleId, dir);
+    if (next) selectStyle(next.id);
+  } else {
+    const keys = flatKeys(soundGroups(engine.programList(false), { lang: settings.lang }));
+    if (!keys.length) return;
+    const i = keys.indexOf(engine.programKey(CH.upper));
+    pickSound(CH.upper, keys[(i + dir + keys.length) % keys.length]);
+  }
+}
+
 function setChannelProgram(ch, key) {
   engine.setProgram(ch, Engine.parseKey(key));
   settings.programs[ch] = engine.programKey(ch);
   persist();
+}
+
+/** A sound chosen from a list or an arrow: set it, show it, and let it be heard. */
+function pickSound(ch, key) {
+  setChannelProgram(ch, key);
+  renderSound();
+  if (sheetMode && sheetMode.sound === ch) sheet.setActive(engine.programKey(ch));
+  if ($('settings').open) renderPartVoices();
+  if (!seq.playing && held.size === 0) {
+    const n = ch === CH.drums || ch === CH.perc ? 63 : ch === CH.bass ? 48 : 60;
+    engine.noteOn(ch, n, 96, audio.ctx.currentTime, 0.6);
+  }
+}
+
+// ───────────────────────── the pickers ─────────────────────────
+function openRhythmList() {
+  const labels = { yamaha: t(settings.lang, 'yourRhythms'), org: t(settings.lang, 'orgGroup'), sudan: t(settings.lang, 'sudanese'), west: t(settings.lang, 'western') };
+  const groups = styleGroups(orderedStyles(), { lang: settings.lang, labels });
+  sheetStartBtn = document.createElement('button');
+  sheetStartBtn.className = 'btn start';
+  sheetStartBtn.addEventListener('click', () => { if (seq.playing) seq.stop(); else seq.start(); });
+  sheetMode = 'rhythm';
+  sheet.open({
+    title: t(settings.lang, 'pickRhythm'), groups, active: settings.styleId, placeholder: t(settings.lang, 'searchRhythms'), hint: t(settings.lang, 'noMatch'),
+    actions: [sheetStartBtn],
+    onPick: (id) => selectStyle(id),
+  });
+  renderTransport();
+}
+
+function openSoundList(ch) {
+  const forDrums = ch === CH.drums || ch === CH.perc;
+  const labels = { kits: t(settings.lang, 'kits'), bank: t(settings.lang, 'bank'), org: t(settings.lang, 'setGroup'), synth: t(settings.lang, 'builtinRhythms') };
+  const groups = soundGroups(engine.programList(forDrums), { lang: settings.lang, labels });
+  const role = ROLE_OF_CH[ch];
+  const title = ch === CH.upper ? t(settings.lang, 'voice') : ch === CH.lower ? t(settings.lang, 'lower') : `${t(settings.lang, 'soundFor')}: ${t(settings.lang, TRACK_LABEL[role] || role)}`;
+  sheetMode = { sound: ch };
+  sheet.open({
+    title, groups, active: engine.programKey(ch), placeholder: t(settings.lang, 'searchSounds'),
+    hint: engine.hasSF2 ? t(settings.lang, 'noMatch') : t(settings.lang, 'noBanksHint'),
+    onPick: (key) => pickSound(ch, key),
+  });
 }
 
 // ───────────────────────── registrations ─────────────────────────
@@ -423,21 +515,36 @@ function loadReg(i) {
 }
 
 // ───────────────────────── imports ─────────────────────────
-async function importSF2(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    const buf = await file.arrayBuffer();
-    engine.loadSF2(buf, file.name);
-    await store.putFile('sf2', { name: file.name, buf });
-    applyStyleVoices(currentStyle());
-    persist();
-    renderSettings(); renderVoices();
-    toast(`${t(settings.lang, 'imported')}: ${engine.sf2.name}`);
-  } catch (err) {
-    toast(`${t(settings.lang, 'error')}: ${err.message}`, 5000);
+async function importSF2(files, input) {
+  if (!files.length) { if (input) input.value = ''; return; }
+  const added = [], bad = [];
+  for (const file of files) {
+    try {
+      const buf = await file.arrayBuffer();
+      engine.loadSF2(buf, file.name);
+      sf2Banks = sf2Banks.filter((b) => b.name !== file.name);
+      sf2Banks.push({ name: file.name, buf });
+      added.push(file.name);
+    } catch (err) { bad.push(`${file.name}: ${err.message}`); }
   }
-  e.target.value = '';
+  // The engine keeps banks in load order; a re-import of a known name replaced it in place, so mirror that order.
+  sf2Banks.sort((a, b) => engine.fonts.findIndex((f) => f.fileName === a.name) - engine.fonts.findIndex((f) => f.fileName === b.name));
+  try { await store.putFile('sf2banks', sf2Banks); } catch (_) { toast(t(settings.lang, 'orgNotStored'), 6000); }
+  if (added.length) applyStyleVoices(currentStyle());
+  persist();
+  renderSettings(); renderSound();
+  if (bad.length) toast(`${t(settings.lang, 'error')}: ${bad.slice(0, 2).join(' · ')}`, 7000);
+  else toast(`${t(settings.lang, 'imported')}: ${added.length} ${t(settings.lang, 'banksLoaded')}`);
+  if (input) input.value = '';
+}
+
+async function removeSF2(index) {
+  engine.removeSF2(index);
+  sf2Banks.splice(index, 1);
+  try { await store.putFile('sf2banks', sf2Banks); } catch (_) { /* ignore */ }
+  for (const ch of Object.keys(settings.programs)) settings.programs[ch] = engine.programKey(+ch);
+  persist();
+  renderSettings(); renderSound();
 }
 
 async function importStyles(e) {
@@ -460,26 +567,33 @@ async function importStyles(e) {
   e.target.value = '';
 }
 
-async function importSty(e) {
-  const files = [...e.target.files];
-  if (!files.length) return;
+/** The folder a picked file came from (folder import), else ''. */
+function folderOf(file) {
+  const rel = file.webkitRelativePath || '';
+  const parts = rel.split('/');
+  return parts.length > 1 ? parts.slice(0, -1).join('/') : '';
+}
+
+async function importSty(files, input) {
+  if (!files.length) { if (input) input.value = ''; return; }
   const added = [], bad = [];
   for (const file of files) {
     try {
       const buf = await file.arrayBuffer();
       convertStyle(new Uint8Array(buf), { id: 'x', name: 'x' });   // parse once so a bad file is refused here
-      styFiles = styFiles.filter((f) => f.name !== file.name);
-      styFiles.push({ name: file.name, buf });
-      added.push(file.name.replace(/\.[^.]+$/, ''));
+      const folder = folderOf(file);
+      styFiles = styFiles.filter((f) => !(f.name === file.name && (f.folder || '') === folder));
+      styFiles.push({ name: file.name, folder, buf });
+      added.push({ name: file.name.replace(/\.[^.]+$/, ''), folder });
     } catch (err) { bad.push(`${file.name}: ${t(settings.lang, 'fmt_' + err.message) !== 'fmt_' + err.message ? t(settings.lang, 'fmt_' + err.message) : err.message}`); }
   }
-  try { await store.putFile('styfiles', styFiles); } catch (_) { /* no IndexedDB */ }
+  try { await store.putFile('styfiles', styFiles); } catch (_) { toast(t(settings.lang, 'orgNotStored'), 6000); }
   buildStyles();
-  if (added.length) selectStyle('sty:' + added[0]);
+  if (added.length) selectStyle('sty:' + (added[0].folder ? added[0].folder + '/' : '') + added[0].name);
   renderSettings();
-  if (bad.length) toast(`${t(settings.lang, 'error')}: ${bad.slice(0, 2).join(' · ')}`, 9000);
-  else toast(`${t(settings.lang, 'imported')}: ${added.join(', ')}`);
-  e.target.value = '';
+  if (bad.length) toast(`${t(settings.lang, 'imported')}: ${added.length} · ${t(settings.lang, 'skipped')} ${bad.length} — ${bad.slice(0, 2).join(' · ')}`, 9000);
+  else toast(`${t(settings.lang, 'imported')}: ${added.length} ${t(settings.lang, 'rhythmFiles')}`);
+  if (input) input.value = '';
 }
 
 async function importOrg(e) {
@@ -497,7 +611,7 @@ async function importOrg(e) {
     buildStyles();
     const first = styles.find((s) => s.org);
     if (first) selectStyle(first.id);
-    renderSettings(); renderVoices();
+    renderSettings(); renderSound();
     toast(`${t(settings.lang, 'imported')}: ${file.name} — ${orgSet.parsed.instruments.length} ${t(settings.lang, 'instruments')}`, 5000);
   } catch (err) {
     const key = String(err.message || err);
@@ -515,20 +629,19 @@ function applyLang() {
   renderInstall();
 }
 
-function renderAll() { renderStyles(); renderStatus(); renderTransport(); renderVoices(); renderRegs(); renderKeyboard(); }
+function renderAll() { renderRhythm(); renderStatus(); renderTransport(); renderSound(); renderRegs(); renderKeyboard(); renderMore(); }
 
-function renderStyles() {
-  const boxes = { sudan: $('sudanChips'), west: $('westChips'), yamaha: $('yamahaChips'), org: $('orgChips') };
-  for (const b of Object.values(boxes)) b.innerHTML = '';
-  $('yamahaGrp').hidden = !styles.some((s) => s.group === 'yamaha');
-  $('orgGrp').hidden = !styles.some((s) => s.group === 'org');
-  for (const st of styles) {
-    const b = document.createElement('button');
-    b.className = 'btn' + (st.id === settings.styleId ? ' on' : '');
-    b.innerHTML = `${settings.lang === 'ar' ? st.name_ar : st.name}<small>${st.meter[0]}/${st.meter[1]}${st.imported ? ' ✎' : ''}</small>`;
-    b.addEventListener('click', () => selectStyle(st.id));
-    (boxes[st.group] || boxes.west).appendChild(b);
-  }
+function renderRhythm() {
+  const st = currentStyle();
+  if (!st) return;
+  $('rhythmName').textContent = settings.lang === 'ar' ? st.name_ar : st.name;
+  const grp = st.group === 'yamaha' ? (st.folder || t(settings.lang, 'yourRhythms')) : st.group === 'org' ? t(settings.lang, 'orgGroup') : t(settings.lang, st.group === 'sudan' ? 'sudanese' : 'western');
+  $('rhythmMeta').textContent = `${grp} · ${st.meter[0]}/${st.meter[1]}`;
+}
+
+function renderMore() {
+  $('more').hidden = !settings.moreOpen;
+  $('moreBtn').classList.toggle('on', !!settings.moreOpen);
 }
 
 function noteLabel(n) { return NOTE_NAMES[n % 12] + (Math.floor(n / 12) - 1); }
@@ -557,25 +670,23 @@ function renderTransport() {
   set('syncBtn', seq.syncArmed);
   const s = $('startBtn');
   s.classList.toggle('on', seq.playing);
-  s.textContent = t(settings.lang, seq.playing ? 'stop' : 'start');
+  $('startLabel').textContent = t(settings.lang, seq.playing ? 'stop' : 'start');
+  if (sheetStartBtn) { sheetStartBtn.textContent = t(settings.lang, seq.playing ? 'stop' : 'start'); sheetStartBtn.classList.toggle('on', seq.playing); }
   if (!seq.playing) $('beat').querySelectorAll('i').forEach((i) => i.classList.remove('on'));
 }
 
-function fillSelect(sel, ch) {
-  const forDrums = ch === 9 || ch === 10;
-  sel.innerHTML = '';
-  for (const p of engine.programList(forDrums)) {
-    const o = document.createElement('option');
-    o.value = p.kind === 'sf2' ? `sf2:${p.bank}:${p.program}` : `synth:${p.name}`;
-    o.textContent = settings.lang === 'ar' ? p.label_ar : p.label;
-    sel.appendChild(o);
-  }
-  sel.value = engine.programKey(ch);
+function soundMeta(ch) {
+  const p = engine.programs[ch];
+  if (!p) return '';
+  if (p.kind === 'sf2') { const f = engine.fonts[p.font]; return `${f ? f.name : ''} · ${p.bank}:${p.program}`; }
+  if (p.kind === 'org') return t(settings.lang, 'setGroup');
+  return t(settings.lang, 'builtinRhythms');
 }
 
-function renderVoices() {
-  fillSelect($('upperSel'), CH.upper);
-  fillSelect($('lowerSel'), CH.lower);
+function renderSound() {
+  $('soundName').textContent = engine.programLabel(CH.upper, settings.lang) || '—';
+  $('soundMeta').textContent = soundMeta(CH.upper);
+  $('lowerName').textContent = engine.programLabel(CH.lower, settings.lang) || '—';
   $('lowerOnBtn').classList.toggle('on', settings.lowerOn);
   $('layerBtn').classList.toggle('on', settings.layer);
   const cm = $('chordModeBtn');
@@ -597,34 +708,57 @@ function renderMidi(list) {
   $('midiInfo').textContent = list.length ? list.map((d) => `${d.manufacturer} ${d.name}`.trim()).join(' · ') : (midi.supported ? t(settings.lang, 'midiNone') : t(settings.lang, 'midiUnsupported'));
 }
 
-function renderSettings() {
-  $('sf2Info').textContent = engine.hasSF2 ? `${engine.sf2.name} — ${engine.sf2.presets.length} presets` : t(settings.lang, 'noSF2');
-  $('sf2Remove').hidden = !engine.hasSF2;
-  $('styleRemove').hidden = !importedPack;
-  $('styRemove').hidden = !styFiles.length;
-  $('orgRemove').hidden = !orgSet;
-  if (orgSet && orgSet.parsed) {
-    const pr = orgSet.parsed;
-    $('orgInfo').textContent = `${orgSet.name} (v${pr.version}) — ${pr.instruments.length} ${t(settings.lang, 'instruments')}: ${pr.instruments.map((i) => i.name).join(', ')}` + (pr.rhythm ? ` · ${t(settings.lang, 'rhythmParts')}: ${pr.rhythm.parts.map((p) => p.name).join(', ') || '—'}` : '');
-  } else $('orgInfo').textContent = t(settings.lang, 'noOrg');
-  $('styInfo').textContent = styFiles.length ? styFiles.map((f) => f.name).join(', ') : t(settings.lang, 'noSty');
+function renderPartVoices() {
   const pv = $('partVoices');
   pv.innerHTML = '';
   for (const role of ['bass', 'chord', 'pad', 'phrase', 'drums', 'perc']) {
-    const label = document.createElement('label');
-    label.textContent = t(settings.lang, TRACK_LABEL[role]);
-    const sel = document.createElement('select');
-    fillSelect(sel, CH[role]);
-    sel.addEventListener('change', () => setChannelProgram(CH[role], sel.value));
-    label.appendChild(sel);
-    pv.appendChild(label);
+    const b = document.createElement('button');
+    b.className = 'pickbtn';
+    b.innerHTML = '<label></label><strong></strong>';
+    b.querySelector('label').textContent = t(settings.lang, TRACK_LABEL[role]);
+    b.querySelector('strong').textContent = engine.programLabel(CH[role], settings.lang) || '—';
+    b.addEventListener('click', () => openSoundList(CH[role]));
+    pv.appendChild(b);
   }
+}
+
+function renderSettings() {
+  const lang = settings.lang;
+  const sl = $('sf2List');
+  sl.innerHTML = '';
+  if (!engine.fonts.length) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = t(lang, 'noSF2'); sl.appendChild(p); }
+  engine.fonts.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'frow';
+    row.innerHTML = '<span></span><small></small><button class="chip" type="button">✕</button>';
+    row.querySelector('span').textContent = f.name;
+    row.querySelector('small').textContent = `${f.presets.length} ${t(lang, 'presets')}`;
+    const x = row.querySelector('button');
+    x.setAttribute('aria-label', t(lang, 'remove'));
+    x.addEventListener('click', () => removeSF2(i));
+    sl.appendChild(row);
+  });
+  if (orgSet && orgSet.parsed) {
+    const pr = orgSet.parsed;
+    $('orgInfo').textContent = `${orgSet.name} (v${pr.version}) — ${pr.instruments.length} ${t(lang, 'instruments')}: ${pr.instruments.map((i) => i.name).join(', ')}` + (pr.rhythm ? ` · ${t(lang, 'rhythmParts')}: ${pr.rhythm.parts.map((p) => p.name).join(', ') || '—'}` : '');
+  } else $('orgInfo').textContent = t(lang, 'noOrg');
+  $('orgRemove').hidden = !orgSet;
+  $('styleRemove').hidden = !importedPack;
+  $('styRemove').hidden = !styFiles.length;
+  if (styFiles.length) {
+    const folders = [...new Set(styFiles.map((f) => f.folder).filter(Boolean))];
+    $('styInfo').textContent = `${styFiles.length} ${t(lang, 'rhythmFiles')}` + (folders.length ? ` (${t(lang, 'fromFolder')} ${folders.join(', ')})` : '');
+  } else $('styInfo').textContent = t(lang, 'noSty');
+  const bb = $('builtinBtn');
+  bb.classList.toggle('on', !!settings.showBuiltin);
+  bb.textContent = t(lang, settings.showBuiltin ? 'showBuiltin' : 'hideBuiltin');
+  renderPartVoices();
   const tm = $('trackMutes');
   tm.innerHTML = '';
   for (const trackName of Object.keys(currentStyle().tracks)) {
     const b = document.createElement('button');
     b.className = 'btn tog' + (settings.mute[trackName] ? '' : ' on');
-    b.textContent = t(settings.lang, TRACK_LABEL[currentStyle().tracks[trackName].role] || trackName);
+    b.textContent = t(lang, TRACK_LABEL[currentStyle().tracks[trackName].role] || trackName);
     b.addEventListener('click', () => { settings.mute[trackName] = !settings.mute[trackName]; seq.mute = settings.mute; persist(); renderSettings(); });
     tm.appendChild(b);
   }

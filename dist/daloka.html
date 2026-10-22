@@ -29,7 +29,7 @@
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 15px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Arabic", "Noto Naskh Arabic", sans-serif; overscroll-behavior: none; }
-body { display: flex; flex-direction: column; min-height: 100dvh; padding-top: var(--safe-top); padding-bottom: var(--safe-bottom); user-select: none; -webkit-user-select: none; }
+body { display: flex; flex-direction: column; height: 100dvh; padding-top: var(--safe-top); user-select: none; -webkit-user-select: none; }
 [hidden] { display: none !important; }
 button, select, input { font: inherit; color: inherit; }
 output { font-variant-numeric: tabular-nums; }
@@ -41,65 +41,67 @@ output { font-variant-numeric: tabular-nums; }
 .gate-card p { margin: 0 0 24px; color: var(--muted); }
 
 /* top bar */
-.top { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); gap: 8px; }
+.top { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--line); gap: 8px; flex: 0 0 auto; }
 .brand { font-weight: 700; font-size: 18px; color: var(--accent); letter-spacing: 1px; }
-.top-right { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-.chip { display: inline-flex; align-items: center; gap: 6px; background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; min-height: 36px; cursor: pointer; }
-.chip .dot { width: 8px; height: 8px; border-radius: 50%; background: #666; }
+.top-right { display: flex; gap: 6px; align-items: center; justify-content: flex-end; min-width: 0; }
+.chip { display: inline-flex; align-items: center; gap: 6px; background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; min-height: 36px; cursor: pointer; white-space: nowrap; }
+#midiBtn { min-width: 0; }
+#midiLabel { overflow: hidden; text-overflow: ellipsis; max-width: 28vw; }
+.chip .dot { width: 8px; height: 8px; border-radius: 50%; background: #666; flex: 0 0 auto; }
 .chip.on .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
 .chip.accent { background: var(--accent); color: #1a1208; border-color: var(--accent); font-weight: 700; }
 
-/* layout */
-.perf { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 8px 12px; max-width: 1100px; width: 100%; margin: 0 auto; }
-.row { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px; }
+/* layout: the panels scroll if they must, the keys stay at the bottom */
+.perf { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; max-width: 1100px; width: 100%; margin: 0 auto; }
+.panels { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 6px 10px; }
+.row { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px; }
 .btn { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; min-height: 48px; cursor: pointer; font-weight: 600; touch-action: manipulation; }
 .btn:active { filter: brightness(1.25); }
 .btn.big { padding: 16px 28px; font-size: 18px; background: var(--accent); color: #1a1208; border: 0; }
 .btn.sq { min-width: 48px; padding: 0; font-size: 22px; }
 .btn.tog.on { background: var(--blue); border-color: var(--blue); color: #fff; }
 .btn.tog.small { min-height: 40px; padding: 6px 12px; font-size: 13px; font-weight: 500; }
-.btn.file { display: inline-flex; align-items: center; justify-content: center; }
+.btn.file { display: inline-flex; align-items: center; justify-content: center; text-transform: none; letter-spacing: 0; font-size: inherit; color: inherit; }
 .btn.file input { display: none; }
-label, .stat label, .voice label, .grp label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+label, .stat label, .grp label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
 
-/* rhythms */
-.rhythms { display: flex; flex-direction: column; gap: 6px; }
-.grp { display: flex; flex-direction: column; gap: 4px; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chips .btn { flex: 1 1 auto; min-width: 96px; border-radius: 999px; padding: 8px 12px; min-height: 52px; line-height: 1.15; }
-.chips .btn.on { background: var(--accent); color: #1a1208; border-color: var(--accent); }
-.chips .btn small { display: block; font-weight: 400; font-size: 11px; opacity: 0.8; }
+/* pickers: ‹ [name] › — the name opens the list */
+.pick { display: grid; grid-template-columns: 52px 1fr 52px; gap: 6px; align-items: stretch; padding: 4px; }
+.btn.nav { min-height: 56px; padding: 0; font-size: 30px; line-height: 1; font-weight: 400; border-radius: 10px; }
+.pickbtn { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; min-height: 56px; padding: 4px 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; text-align: start; cursor: pointer; min-width: 0; }
+.pickbtn:active { filter: brightness(1.25); }
+.pickbtn label { pointer-events: none; }
+.pickbtn strong { font-size: 18px; line-height: 1.15; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pickbtn small { color: var(--muted); font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pickbtn.wide { flex: 1 1 100%; }
+#soundRow .pickbtn strong { color: var(--accent); }
 
 /* transport */
-.transport { display: grid; grid-template-columns: 1.2fr 3fr; grid-template-rows: auto auto; gap: 8px; align-items: stretch; }
-.btn.start { grid-row: 1 / span 2; min-height: 112px; font-size: 22px; letter-spacing: 0.06em; background: var(--accent2); border-color: var(--accent2); color: #fff; }
-.btn.start.on { background: var(--green); border-color: var(--green); color: #06110a; }
+.transport { display: flex; flex-direction: column; gap: 6px; }
 .parts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.btn.part { min-height: 56px; font-size: 14px; letter-spacing: 0.04em; padding: 6px; }
+.btn.part { min-height: 52px; font-size: 14px; letter-spacing: 0.04em; padding: 6px 2px; }
 .btn.part.on { background: var(--green); border-color: var(--green); color: #06110a; }
 .btn.part.pending { background: var(--accent); border-color: var(--accent); color: #1a1208; animation: blink 0.5s steps(2) infinite; }
 @keyframes blink { 50% { filter: brightness(0.7); } }
-.tline { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.tline { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: stretch; }
+.btn.start { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 72px; font-size: 22px; letter-spacing: 0.06em; background: var(--accent2); border-color: var(--accent2); color: #fff; }
+.btn.start.on { background: var(--green); border-color: var(--green); color: #06110a; }
 .stat { display: flex; flex-direction: column; gap: 4px; }
 .stepper { display: flex; align-items: center; gap: 6px; }
-.stepper output { min-width: 64px; text-align: center; font-size: 20px; font-weight: 700; }
-.beat { display: flex; gap: 6px; align-items: center; height: 48px; }
-.beat i { width: 14px; height: 14px; border-radius: 50%; background: var(--line); transition: background 0.05s; }
-.beat i.on { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
-.beat i.one.on { background: var(--accent2); box-shadow: 0 0 10px var(--accent2); }
-.tline .btn.tog { margin-inline-start: auto; }
+.stepper output { min-width: 60px; text-align: center; font-size: 20px; font-weight: 700; }
+.beat { display: flex; gap: 6px; align-items: center; height: 14px; }
+.beat i { width: 12px; height: 12px; border-radius: 50%; background: rgba(0, 0, 0, 0.35); transition: background 0.05s; }
+.beat i.on { background: #fff; box-shadow: 0 0 8px #fff; }
+.beat i.one.on { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+.togs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 
 /* hands */
-.hands { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-.voice { display: flex; flex-direction: column; gap: 4px; flex: 1 1 180px; }
-select { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; min-height: 48px; width: 100%; }
-.chord-stat output { font-size: 32px; font-weight: 800; color: var(--accent); min-width: 80px; line-height: 48px; }
+.hands { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: end; }
+.chord-stat output { font-size: 30px; font-weight: 800; color: var(--accent); min-width: 64px; line-height: 44px; }
+#moreBtn.on { background: var(--panel2); border-color: var(--accent); color: var(--accent); }
 
 /* more */
-.more summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: 6px 4px; list-style: none; }
-.more summary::before { content: '▸ '; }
-.more[open] summary::before { content: '▾ '; }
-.more-body { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding-top: 6px; }
+.more-body { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .regs { flex: 1 1 100%; }
 .regbtns { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin: 6px 0 4px; }
 .regbtns .btn { min-height: 44px; padding: 6px 2px; font-size: 14px; }
@@ -107,55 +109,91 @@ select { background: var(--panel2); border: 1px solid var(--line); border-radius
 .regbtns .btn.on { background: var(--accent); color: #1a1208; }
 .regs small { color: var(--muted); }
 
-/* keyboard */
-.keys-row { display: flex; flex-direction: column; gap: 6px; }
-.keyboard { position: relative; height: 150px; display: flex; touch-action: none; direction: ltr; border-radius: 8px; overflow: hidden; }
+/* keyboard: pinned under the panels */
+.keys-row { flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; padding: 4px 10px calc(6px + var(--safe-bottom)); background: var(--bg); }
+.keyboard { position: relative; height: 130px; display: flex; touch-action: none; direction: ltr; border-radius: 8px; overflow: hidden; }
 .keyboard.hidden { display: none; }
 .key { position: relative; flex: 1; background: #f4efe6; border: 1px solid #bfb3a3; border-radius: 0 0 6px 6px; color: #776; font-size: 10px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; }
 .key.black { position: absolute; top: 0; width: 7%; height: 60%; background: #1c1917; border-color: #000; z-index: 2; border-radius: 0 0 4px 4px; color: #aaa; }
-.key.on { background: var(--accent); }
-.key.black.on { background: var(--accent2); }
 .key.lower { background: #e8ddd0; }
+.key.on, .key.lower.on { background: var(--accent); }
+.key.black.on { background: var(--accent2); }
 .key.split::after { content: ''; position: absolute; left: -2px; top: 0; bottom: 0; width: 3px; background: var(--accent2); }
-.hint { color: var(--muted); font-size: 12px; }
+.hint { color: var(--muted); font-size: 11px; }
 
 /* toast */
-.toast { position: fixed; left: 50%; bottom: calc(24px + var(--safe-bottom)); transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 999px; z-index: 60; max-width: 90vw; }
+.toast { position: fixed; left: 50%; bottom: calc(150px + var(--safe-bottom)); transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 999px; z-index: 60; max-width: 90vw; }
 
-/* settings sheet */
+/* sheets */
 .sheet { border: 0; padding: 0; background: var(--panel); color: var(--text); width: min(640px, 100vw); max-height: 100dvh; margin: auto; border-radius: var(--radius); }
 .sheet::backdrop { background: rgba(0, 0, 0, 0.6); }
-.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); }
-.sheet-head h2 { margin: 0; font-size: 18px; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); z-index: 1; }
+.sheet-head h2 { margin: 0; font-size: 18px; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-actions { display: flex; gap: 6px; }
+.sheet-actions .btn { min-height: 40px; padding: 6px 14px; }
+.sheet-actions .btn.start { min-height: 40px; font-size: 14px; flex-direction: row; }
 .sheet-body { padding: 12px 16px 24px; overflow: auto; max-height: calc(100dvh - 60px); }
 .sheet-body h3 { margin: 18px 0 8px; font-size: 13px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
 .sheet.small .sheet-body p { line-height: 1.5; }
 .muted { color: var(--muted); }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-.grid2 label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); text-transform: none; letter-spacing: 0; }
+.grid2 .pickbtn { min-height: 52px; }
 .sliders label { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 10px; margin: 6px 0; text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--text); }
 input[type=range] { width: 100%; accent-color: var(--accent); min-height: 32px; }
 .export { background: #000; color: #9f9; padding: 8px; max-height: 200px; overflow: auto; font-size: 11px; user-select: text; -webkit-user-select: text; }
+.filelist { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+.filelist .frow { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; }
+.filelist .frow span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filelist .frow small { color: var(--muted); }
+.filelist .frow .chip { min-height: 32px; padding: 2px 10px; }
 
-/* small screens */
-@media (max-width: 600px) {
-  .transport { grid-template-columns: 1fr; }
-  .btn.start { grid-row: auto; min-height: 64px; }
-  .parts { grid-template-columns: repeat(5, 1fr); }
+/* the list sheet: full screen on a phone, a tall card on a desktop */
+.sheet.list { width: min(560px, 100vw); height: min(92dvh, 900px); max-height: 100dvh; }
+.sheet.list[open] { display: flex; flex-direction: column; }
+.sheet-search { padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.sheet-search input { width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); font-size: 16px; }
+.list-body { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 0 0 calc(12px + var(--safe-bottom)); }
+.list-group { position: sticky; top: 0; z-index: 1; padding: 8px 14px 4px; background: var(--panel); color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--line); }
+.list-row { display: grid; grid-template-columns: 1fr auto 24px; gap: 10px; align-items: center; width: 100%; min-height: 52px; padding: 8px 14px; background: none; border: 0; border-bottom: 1px solid var(--line); text-align: start; cursor: pointer; }
+.list-row:active { background: var(--panel2); }
+.list-row.on { background: rgba(224, 166, 58, 0.14); }
+.list-label { font-size: 16px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.list-check { color: var(--accent); font-weight: 700; visibility: hidden; text-align: center; }
+.list-row.on .list-check { visibility: visible; }
+.list-empty { padding: 24px 16px; text-align: center; }
+
+/* wide screens: two columns of panels */
+@media (min-width: 760px) {
+  .panels { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: min-content; align-content: start; }
+  .transport { grid-row: span 2; }
+  .more { grid-column: 1 / -1; }
+  .keyboard { height: 150px; }
+}
+/* phones in portrait: tighter */
+@media (max-width: 420px) {
+  .btn.part { font-size: 13px; }
+  .pickbtn strong { font-size: 17px; }
   .regbtns { grid-template-columns: repeat(4, 1fr); }
-  .chord-stat output { font-size: 26px; }
-  .keyboard { height: 120px; }
-  .chips .btn { min-width: 84px; }
 }
+@media (max-height: 640px) and (max-width: 759px) {
+  .keyboard { height: 100px; }
+  .hint { display: none; }
+}
+/* phones in landscape: everything short */
 @media (orientation: landscape) and (max-height: 500px) {
-  .perf { gap: 4px; padding: 4px 8px; }
+  .top { padding: 2px 10px; }
+  .panels { gap: 4px; padding: 4px 8px; }
   .row { padding: 4px; }
-  .btn.part, .btn.start { min-height: 44px; }
-  .btn.start { font-size: 16px; }
-  .keyboard { height: 90px; }
-  .regs small, .hint { display: none; }
+  .btn.part { min-height: 40px; }
+  .btn.start { min-height: 56px; font-size: 16px; }
+  .btn.nav, .pickbtn { min-height: 44px; }
+  .keyboard { height: 84px; }
+  .hint { display: none; }
 }
+/* RTL: the arrows keep pointing outward */
+[dir="rtl"] .btn.nav { transform: scaleX(-1); }
 
 </style>
 </head>
@@ -181,78 +219,101 @@ input[type=range] { width: 100%; accent-color: var(--accent); min-height: 32px; 
   </header>
 
   <main class="perf">
-    <section class="row rhythms">
-      <div class="grp"><label data-i18n="sudanese">Sudanese</label><div id="sudanChips" class="chips"></div></div>
-      <div class="grp"><label data-i18n="western">Western</label><div id="westChips" class="chips"></div></div>
-      <div class="grp" id="yamahaGrp" hidden><label data-i18n="yamahaGroup">Yamaha styles</label><div id="yamahaChips" class="chips"></div></div>
-      <div class="grp" id="orgGrp" hidden><label data-i18n="orgGroup">ORG 24 set</label><div id="orgChips" class="chips"></div></div>
-    </section>
+    <div class="panels">
+      <section class="row pick" id="rhythmRow">
+        <button class="btn nav" data-nav="style-" aria-label="Previous rhythm">‹</button>
+        <button class="pickbtn" id="rhythmBtn">
+          <label data-i18n="rhythm">Rhythm</label>
+          <strong id="rhythmName">—</strong>
+          <small id="rhythmMeta"></small>
+        </button>
+        <button class="btn nav" data-nav="style+" aria-label="Next rhythm">›</button>
+      </section>
 
-    <section class="row transport">
-      <button id="startBtn" class="btn start" data-i18n="start">START</button>
-      <div class="parts">
-        <button id="introBtn" class="btn part" data-i18n="intro">INTRO</button>
-        <button id="mainABtn" class="btn part" data-i18n="mainA">A</button>
-        <button id="mainBBtn" class="btn part" data-i18n="mainB">B</button>
-        <button id="fillBtn" class="btn part" data-i18n="fill">FILL</button>
-        <button id="endingBtn" class="btn part" data-i18n="ending">END</button>
-      </div>
-      <div class="tline">
+      <section class="row transport">
+        <div class="parts">
+          <button id="introBtn" class="btn part" data-i18n="intro">INTRO</button>
+          <button id="mainABtn" class="btn part" data-i18n="mainA">A</button>
+          <button id="mainBBtn" class="btn part" data-i18n="mainB">B</button>
+          <button id="fillBtn" class="btn part" data-i18n="fill">FILL</button>
+          <button id="endingBtn" class="btn part" data-i18n="ending">END</button>
+        </div>
+        <div class="tline">
+          <button id="startBtn" class="btn start"><span id="startLabel" data-i18n="start">START</span><span class="beat" id="beat"><i></i><i></i><i></i><i></i></span></button>
+          <div class="stat">
+            <label data-i18n="tempo">Tempo</label>
+            <div class="stepper"><button data-act="tempo-" class="btn sq">−</button><output id="tempoVal">120</output><button data-act="tempo+" class="btn sq">+</button></div>
+          </div>
+        </div>
+        <div class="togs">
+          <button id="syncBtn" class="btn tog small" data-i18n="sync">Start with first chord</button>
+          <button id="chordModeBtn" class="btn tog small" data-i18n="fingered">Full chords</button>
+        </div>
+      </section>
+
+      <section class="row pick" id="soundRow">
+        <button class="btn nav" data-nav="sound-" aria-label="Previous sound">‹</button>
+        <button class="pickbtn" id="soundBtn">
+          <label data-i18n="voice">Right-hand sound</label>
+          <strong id="soundName">—</strong>
+          <small id="soundMeta"></small>
+        </button>
+        <button class="btn nav" data-nav="sound+" aria-label="Next sound">›</button>
+      </section>
+
+      <section class="row hands">
+        <div class="stat chord-stat">
+          <label data-i18n="chord">Chord</label>
+          <output id="chordVal">—</output>
+        </div>
         <div class="stat">
-          <label data-i18n="tempo">Tempo</label>
-          <div class="stepper"><button data-act="tempo-" class="btn sq">−</button><output id="tempoVal">120</output><button data-act="tempo+" class="btn sq">+</button></div>
+          <label data-i18n="transpose">Transpose</label>
+          <div class="stepper"><button data-act="trans-" class="btn sq">−</button><output id="transVal">0</output><button data-act="trans+" class="btn sq">+</button></div>
         </div>
-        <div class="beat" id="beat"><i></i><i></i><i></i><i></i></div>
-        <button id="syncBtn" class="btn tog small" data-i18n="sync">Start with first chord</button>
-      </div>
-    </section>
+        <button id="moreBtn" class="btn tog small" data-i18n="more">More</button>
+      </section>
 
-    <section class="row hands">
-      <div class="voice">
-        <label data-i18n="voice">Right-hand sound</label>
-        <select id="upperSel"></select>
-      </div>
-      <div class="stat chord-stat">
-        <label data-i18n="chord">Chord</label>
-        <output id="chordVal">—</output>
-      </div>
-      <div class="stat">
-        <label data-i18n="transpose">Transpose</label>
-        <div class="stepper"><button data-act="trans-" class="btn sq">−</button><output id="transVal">0</output><button data-act="trans+" class="btn sq">+</button></div>
-      </div>
-      <button id="chordModeBtn" class="btn tog small" data-i18n="fingered">Full chords</button>
-    </section>
+      <section class="row more" id="more" hidden>
+        <div class="more-body">
+          <div class="stat">
+            <label data-i18n="split">Split point</label>
+            <div class="stepper"><button data-act="split-" class="btn sq">−</button><output id="splitVal">F#3</output><button data-act="split+" class="btn sq">+</button></div>
+          </div>
+          <button class="pickbtn wide" id="lowerBtn">
+            <label data-i18n="lower">Left-hand sound</label>
+            <strong id="lowerName">—</strong>
+          </button>
+          <button id="lowerOnBtn" class="btn tog" data-i18n="lowerOn">Left hand also sounds</button>
+          <button id="layerBtn" class="btn tog" data-i18n="layer">Layer two sounds</button>
+          <button id="panicBtn" class="btn tog" data-i18n="panic">All notes off</button>
+          <button id="keysToggle" class="btn tog" data-i18n="hideKeys">Hide keys</button>
+          <div class="regs">
+            <label data-i18n="registrations">Setups</label>
+            <div id="regBtns" class="regbtns"></div>
+            <small data-i18n="holdToSave">Tap a slot to load, hold it to save</small>
+          </div>
+        </div>
+      </section>
+    </div>
 
-    <details class="row more" id="more">
-      <summary data-i18n="more">More</summary>
-      <div class="more-body">
-        <div class="stat">
-          <label data-i18n="split">Split point</label>
-          <div class="stepper"><button data-act="split-" class="btn sq">−</button><output id="splitVal">F#3</output><button data-act="split+" class="btn sq">+</button></div>
-        </div>
-        <div class="voice">
-          <label data-i18n="lower">Left-hand sound</label>
-          <select id="lowerSel"></select>
-        </div>
-        <button id="lowerOnBtn" class="btn tog" data-i18n="lowerOn">Left hand also sounds</button>
-        <button id="layerBtn" class="btn tog" data-i18n="layer">Layer two sounds</button>
-        <button id="panicBtn" class="btn tog" data-i18n="panic">All notes off</button>
-        <button id="keysToggle" class="btn tog" data-i18n="hideKeys">Hide keys</button>
-        <div class="regs">
-          <label data-i18n="registrations">Setups</label>
-          <div id="regBtns" class="regbtns"></div>
-          <small data-i18n="holdToSave">Tap a slot to load, hold it to save</small>
-        </div>
-      </div>
-    </details>
-
-    <section class="row keys-row">
+    <section class="keys-row" id="keysRow">
       <div id="keyboard" class="keyboard"></div>
       <small class="hint" data-i18n="hint">Left of the red line: play a chord, the rhythm follows it. Right of it: melody.</small>
     </section>
   </main>
 
   <div id="toast" class="toast" hidden></div>
+
+  <dialog id="listSheet" class="sheet list">
+    <div class="sheet-head">
+      <h2 class="sheet-title"></h2>
+      <div class="sheet-actions"></div>
+      <button class="chip sheet-close" aria-label="Close">✕</button>
+    </div>
+    <div class="sheet-search"><input type="search" placeholder="" autocomplete="off" autocorrect="off" spellcheck="false"></div>
+    <div class="list-body" role="listbox"></div>
+    <p class="list-empty muted" hidden></p>
+  </dialog>
 
   <dialog id="installHelp" class="sheet small">
     <div class="sheet-head"><h2 data-i18n="installHelpTitle">Install Daloka as an app</h2><button id="closeInstallHelp" class="chip">✕</button></div>
@@ -268,21 +329,26 @@ input[type=range] { width: 100%; accent-color: var(--accent); min-height: 32px; 
       <button id="closeSettings" class="chip">✕</button>
     </div>
     <div class="sheet-body">
-      <h3 data-i18n="sounds">Sounds</h3>
-      <p id="sf2Info" class="muted" data-i18n="noSF2">Built-in sounds</p>
+      <h3 data-i18n="sounds">Sound banks</h3>
+      <p class="muted" data-i18n="sf2Help"></p>
+      <div id="sf2List" class="filelist"></div>
       <div class="actions">
-        <label class="btn file"><span data-i18n="importSF2">Import SF2</span><input id="sf2File" type="file" accept=".sf2,audio/x-soundfont,application/octet-stream"></label>
-        <button id="sf2Remove" class="btn" data-i18n="removeSF2">Remove sound bank</button>
+        <label class="btn file"><span data-i18n="importSF2">Add SF2 banks</span><input id="sf2File" type="file" multiple accept=".sf2,.SF2,audio/x-soundfont,application/octet-stream"></label>
+        <label class="btn file"><span data-i18n="importSF2Folder">Add a folder of banks</span><input id="sf2Folder" type="file" webkitdirectory multiple></label>
       </div>
+
+      <h3 data-i18n="partSounds">Sounds of the rhythm parts</h3>
       <div class="grid2" id="partVoices"></div>
 
-      <h3 data-i18n="styles">Styles</h3>
+      <h3 data-i18n="yamahaStyles">Your rhythms</h3>
+      <p class="muted" data-i18n="yamahaHelp"></p>
+      <p id="styInfo" class="muted"></p>
       <div class="actions">
-        <label class="btn file"><span data-i18n="importStyles">Import style pack</span><input id="styleFile" type="file" accept=".json,application/json"></label>
-        <button id="styleExport" class="btn" data-i18n="exportStyles">Export built-in styles</button>
-        <button id="styleRemove" class="btn" data-i18n="removeStyles">Remove imported styles</button>
+        <label class="btn file"><span data-i18n="importSty">Add rhythm files (.sty)</span><input id="styFile" type="file" multiple accept=".sty,.prs,.sst,.bcs,.pst,.set,.mid,application/octet-stream"></label>
+        <label class="btn file"><span data-i18n="importStyFolder">Add a folder of rhythms</span><input id="styFolder" type="file" webkitdirectory multiple></label>
+        <button id="styRemove" class="btn" data-i18n="removeSty">Remove all</button>
       </div>
-      <pre id="styleExportOut" class="export" hidden></pre>
+      <div class="actions"><button id="builtinBtn" class="btn tog on" data-i18n="showBuiltin">Show built-in rhythms</button></div>
 
       <h3 data-i18n="orgSet">ORG 24 set</h3>
       <p id="orgInfo" class="muted"></p>
@@ -290,14 +356,6 @@ input[type=range] { width: 100%; accent-color: var(--accent); min-height: 32px; 
       <div class="actions">
         <label class="btn file"><span data-i18n="importOrg">Import ORG 24 set (.set)</span><input id="orgFile" type="file" accept=".set,.Set,application/octet-stream"></label>
         <button id="orgRemove" class="btn" data-i18n="removeOrg">Remove set</button>
-      </div>
-
-      <h3 data-i18n="yamahaStyles">Yamaha styles</h3>
-      <p id="styInfo" class="muted"></p>
-      <p class="muted" data-i18n="yamahaHelp"></p>
-      <div class="actions">
-        <label class="btn file"><span data-i18n="importSty">Import styles (.sty / .set)</span><input id="styFile" type="file" multiple accept=".sty,.prs,.sst,.bcs,.pst,.set,.mid,application/octet-stream"></label>
-        <button id="styRemove" class="btn" data-i18n="removeSty">Remove Yamaha styles</button>
       </div>
 
       <h3 data-i18n="mixer">Mixer</h3>
@@ -309,6 +367,14 @@ input[type=range] { width: 100%; accent-color: var(--accent); min-height: 32px; 
       </div>
       <h3 data-i18n="tracks">Style tracks</h3>
       <div id="trackMutes" class="actions"></div>
+
+      <h3 data-i18n="styles">Style packs</h3>
+      <div class="actions">
+        <label class="btn file"><span data-i18n="importStyles">Import style pack</span><input id="styleFile" type="file" accept=".json,application/json"></label>
+        <button id="styleExport" class="btn" data-i18n="exportStyles">Export built-in styles</button>
+        <button id="styleRemove" class="btn" data-i18n="removeStyles">Remove imported styles</button>
+      </div>
+      <pre id="styleExportOut" class="export" hidden></pre>
 
       <h3 data-i18n="midi">MIDI</h3>
       <p id="midiInfo" class="muted"></p>
@@ -1767,25 +1833,52 @@ class Synth {
   _drum(ch, note, vel, when) {
     const v = Math.max(0.1, vel / 127);
     const dest = this.routeFor(ch);
+    // The whole GM percussion map, so an imported Yamaha / ORG rhythm plays every stroke it has,
+    // not a generic tom for anything the Sudanese kit did not name.
     switch (note) {
+      case 35: return this._kick(dest, when, v, 120, 42, 0.5);         // acoustic bass drum
       case 36: return this._kick(dest, when, v, 150, 48, 0.45);        // kick / tum-tum deep drum
       case 38: return this._snare(dest, when, v);                      // snare
-      case 63: return this._membrane(dest, when, v, 215, 0.26, 0.35);  // daloka / bangaz dum
-      case 60: return this._tak(dest, when, v, 1500, 0.08);            // daloka / bangaz tak
-      case 64: return this._membrane(dest, when, v, 105, 0.42, 0.3);   // mambo (big bangaz)
-      case 41: return this._membrane(dest, when, v, 120, 0.35, 0.5);   // nugara / tabl low
-      case 48: return this._membrane(dest, when, v, 320, 0.18, 0.5);   // nugara / tabl high
-      case 45: return this._membrane(dest, when, v, 170, 0.3, 0.45);   // tom
+      case 40: return this._snare(dest, when, v * 0.9);                // electric snare
+      case 63: return this._membrane(dest, when, v, 215, 0.26, 0.35);  // daloka / bangaz dum (open high conga)
+      case 62: return this._membrane(dest, when, v * 0.8, 260, 0.12, 0.5);  // mute high conga
+      case 60: return this._tak(dest, when, v, 1500, 0.08);            // daloka / bangaz tak (high bongo)
+      case 61: return this._tak(dest, when, v, 1100, 0.1);             // low bongo
+      case 64: return this._membrane(dest, when, v, 105, 0.42, 0.3);   // mambo (low conga)
+      case 41: return this._membrane(dest, when, v, 120, 0.35, 0.5);   // nugara / tabl low (low floor tom)
+      case 43: return this._membrane(dest, when, v, 140, 0.33, 0.5);   // high floor tom
+      case 45: return this._membrane(dest, when, v, 170, 0.3, 0.45);   // low tom
+      case 47: return this._membrane(dest, when, v, 210, 0.26, 0.45);  // low-mid tom
+      case 48: return this._membrane(dest, when, v, 320, 0.18, 0.5);   // nugara / tabl high (hi-mid tom)
+      case 50: return this._membrane(dest, when, v, 380, 0.16, 0.5);   // high tom
+      case 65: return this._membrane(dest, when, v, 420, 0.14, 0.7);   // high timbale
+      case 66: return this._membrane(dest, when, v, 300, 0.18, 0.7);   // low timbale
       case 39: return this._clap(dest, when, v);
       case 70: return this._shaker(dest, when, v, 0.05, 8000);         // kashkoush / maracas
+      case 69: return this._shaker(dest, when, v, 0.08, 6500);         // cabasa
+      case 82: return this._shaker(dest, when, v, 0.1, 7500);          // shaker
       case 42: return this._shaker(dest, when, v, 0.06, 7000);         // closed hat
+      case 44: return this._shaker(dest, when, v * 0.7, 0.05, 7500);   // pedal hat
       case 46: return this._shaker(dest, when, v, 0.35, 6000);         // open hat
-      case 76: return this._tak(dest, when, v, 2300, 0.04);            // shatam sticks / wood block
+      case 51: return this._shaker(dest, when, v * 0.8, 0.6, 5000);    // ride
+      case 59: return this._shaker(dest, when, v * 0.8, 0.5, 5500);    // ride 2
+      case 53: return this._bell(dest, when, v * 0.7);                 // ride bell
+      case 76: return this._tak(dest, when, v, 2300, 0.04);            // shatam sticks / hi wood block
+      case 77: return this._tak(dest, when, v, 1700, 0.05);            // low wood block
+      case 75: return this._tak(dest, when, v, 2500, 0.03);            // claves
       case 54: return this._tambourine(dest, when, v);                 // riq
-      case 37: return this._tak(dest, when, v, 2600, 0.05);            // rim
-      case 56: return this._bell(dest, when, v);
+      case 37: return this._tak(dest, when, v, 2600, 0.05);            // rim / side stick
+      case 56: return this._bell(dest, when, v);                       // cowbell
+      case 67: return this._bell(dest, when, v * 0.8);                 // high agogo
+      case 68: return this._bell(dest, when, v * 0.7);                 // low agogo
+      case 80: return this._tak(dest, when, v * 0.6, 6000, 0.06);      // mute triangle
+      case 81: return this._shaker(dest, when, v * 0.6, 0.5, 9000);    // open triangle
       case 49: return this._shaker(dest, when, v, 1.2, 4000);          // crash
-      default: return this._membrane(dest, when, v, 180, 0.2, 0.4);
+      case 57: return this._shaker(dest, when, v, 1.0, 4500);          // crash 2
+      case 52: return this._shaker(dest, when, v, 0.9, 3500);          // china
+      case 55: return this._shaker(dest, when, v, 0.5, 5000);          // splash
+      case 73: case 74: return this._shaker(dest, when, v * 0.6, 0.12, 3000);  // guiro
+      default: return note < 60 ? this._membrane(dest, when, v, 180, 0.2, 0.4) : this._tak(dest, when, v, 1800, 0.06);
     }
   }
 
@@ -2397,8 +2490,8 @@ function createAudio() {
 
 
 // ───── js/engine.js ─────
-// Routes every channel to the built-in synth or the loaded SF2, by program.
-// program: { kind: 'synth', name } | { kind: 'sf2', bank, program }
+// Routes every channel to the built-in synth, one of the loaded SF2 banks, or the ORG set, by program.
+// program: { kind: 'synth', name } | { kind: 'sf2', font, bank, program } | { kind: 'org', index }
 
 
 
@@ -2409,35 +2502,82 @@ class Engine {
   constructor(audio) {
     this.audio = audio;
     this.synth = new Synth(audio.ctx, audio.routeFor);
-    this.sf2 = new SF2Player(audio.ctx, audio.routeFor);
+    this.fonts = [];               // SF2Player per loaded bank, in load order
     this.org = new OrgSampler(audio.ctx, audio.routeFor);
     this.programs = {};
     for (const ch of Object.values(CH)) this.setProgram(ch, { kind: 'synth', name: ch === 9 || ch === 10 ? 'kit' : 'lead' });
   }
 
-  get hasSF2() { return !!this.sf2.font; }
+  get hasSF2() { return this.fonts.length > 0; }
+  /** The first bank, for code that wants "the" SF2 (name, preset count). */
+  get sf2() { return this.fonts[0] || null; }
 
-  loadSF2(arrayBuffer, name) { return this.sf2.load(arrayBuffer, name); }
+  /** Add a bank (replacing one loaded from the same file name). Returns its index. */
+  loadSF2(arrayBuffer, fileName) {
+    const p = new SF2Player(this.audio.ctx, this.audio.routeFor);
+    p.load(arrayBuffer, fileName);
+    p.fileName = fileName;
+    const i = this.fonts.findIndex((f) => f.fileName === fileName);
+    if (i >= 0) { this.fonts[i].allOff(); this.fonts[i] = p; return i; }
+    this.fonts.push(p);
+    return this.fonts.length - 1;
+  }
+
+  removeSF2(index) {
+    const f = this.fonts[index];
+    if (!f) return;
+    f.allOff();
+    this.fonts.splice(index, 1);
+    // Programs on later banks shift down; programs on the removed bank fall back to the synth.
+    for (const [ch, p] of Object.entries(this.programs)) {
+      if (p.kind !== 'sf2') continue;
+      if (p.font === index) this.setProgram(+ch, { kind: 'synth', name: +ch === 9 || +ch === 10 ? 'kit' : 'lead' });
+      else if (p.font > index) p.font--;
+    }
+  }
+
+  clearSF2() { for (const f of this.fonts) f.allOff(); this.fonts = []; for (const [ch, p] of Object.entries(this.programs)) if (p.kind === 'sf2') this.setProgram(+ch, { kind: 'synth', name: +ch === 9 || +ch === 10 ? 'kit' : 'lead' }); }
+
   get hasOrg() { return this.org.loaded; }
   loadOrg(parsed, bytes, name) { this.org.load(parsed, bytes, name); }
 
-  /** All selectable programs: built-in presets first, then the SF2 presets. */
+  /** First bank that has (bank, program): { font, index } or null. */
+  findPreset(bank, program) {
+    for (let f = 0; f < this.fonts.length; f++) {
+      const idx = this.fonts[f].findPreset(bank, program);
+      if (idx >= 0) return { font: f, index: idx };
+    }
+    return null;
+  }
+
+  /** A drum kit from the banks: GM standard kit first, else any bank-128 preset. */
+  findKit() {
+    const std = this.findPreset(128, 0);
+    if (std) return { kind: 'sf2', font: std.font, bank: 128, program: 0 };
+    for (let f = 0; f < this.fonts.length; f++) {
+      const p = this.fonts[f].presets.find((x) => x.bank === 128);
+      if (p) return { kind: 'sf2', font: f, bank: 128, program: p.program };
+    }
+    return null;
+  }
+
+  /** All selectable programs, each with its storage key: the banks' presets, the set's instruments, the built-ins. */
   programList(forDrums = false) {
     const out = [];
-    if (forDrums) out.push({ kind: 'synth', name: 'kit', label: 'Built-in kit', label_ar: 'الطقم المدمج' });
-    else for (const [name, p] of Object.entries(SYNTH_PRESETS)) out.push({ kind: 'synth', name, label: p.label, label_ar: p.label_ar });
+    this.fonts.forEach((f, fi) => {
+      for (const p of f.presets) {
+        if (forDrums ? p.bank !== 128 : p.bank === 128) continue;
+        out.push({ kind: 'sf2', font: fi, fontName: f.name, bank: p.bank, program: p.program, key: `sf2:${fi}:${p.bank}:${p.program}`, label: p.name, label_ar: p.name });
+      }
+    });
     if (this.org.loaded) {
       for (const inst of this.org.instruments) {
         if (forDrums !== !!inst.isKit) continue;
-        out.push({ kind: 'org', index: inst.index, label: `${inst.name} (set)`, label_ar: `${inst.name} (سيت)` });
+        out.push({ kind: 'org', index: inst.index, key: `org:${inst.index}`, label: inst.name, label_ar: inst.name });
       }
     }
-    if (this.sf2.font) {
-      for (const p of this.sf2.presets) {
-        if (forDrums ? p.bank !== 128 : p.bank === 128) continue;
-        out.push({ kind: 'sf2', bank: p.bank, program: p.program, label: `${p.name} (${p.bank}:${p.program})`, label_ar: `${p.name} (${p.bank}:${p.program})` });
-      }
-    }
+    if (forDrums) out.push({ kind: 'synth', name: 'kit', key: 'synth:kit', label: 'Built-in kit', label_ar: 'الطقم المدمج' });
+    else for (const [name, p] of Object.entries(SYNTH_PRESETS)) out.push({ kind: 'synth', name, key: `synth:${name}`, label: p.label, label_ar: p.label_ar });
     return out;
   }
 
@@ -2446,35 +2586,57 @@ class Engine {
       if (!this.org.loaded || !this.org.instruments[prog.index]) return false;
       this.org.setProgram(ch, prog.index);
     } else if (prog.kind === 'sf2') {
-      const idx = this.sf2.findPreset(prog.bank, prog.program);
+      const f = this.fonts[prog.font];
+      if (!f) return false;
+      const idx = f.findPreset(prog.bank, prog.program);
       if (idx < 0) return false;
-      this.sf2.setProgram(ch, idx);
+      f.setProgram(ch, idx);
     } else {
       this.synth.setProgram(ch, prog.name);
     }
-    this.programs[ch] = prog;
+    this.programs[ch] = { ...prog };
     return true;
   }
 
   programKey(ch) {
     const p = this.programs[ch];
-    return p ? (p.kind === 'sf2' ? `sf2:${p.bank}:${p.program}` : p.kind === 'org' ? `org:${p.index}` : `synth:${p.name}`) : 'synth:lead';
+    return p ? Engine.keyOf(p) : 'synth:lead';
   }
 
+  static keyOf(p) {
+    return p.kind === 'sf2' ? `sf2:${p.font}:${p.bank}:${p.program}` : p.kind === 'org' ? `org:${p.index}` : `synth:${p.name}`;
+  }
+
+  /** 'sf2:font:bank:program' (or the older 'sf2:bank:program' = bank file 0), 'org:index', 'synth:name'. */
   static parseKey(key) {
-    const parts = key.split(':');
-    if (parts[0] === 'sf2') return { kind: 'sf2', bank: +parts[1], program: +parts[2] };
+    const parts = String(key).split(':');
+    if (parts[0] === 'sf2') return parts.length >= 4 ? { kind: 'sf2', font: +parts[1], bank: +parts[2], program: +parts[3] } : { kind: 'sf2', font: 0, bank: +parts[1], program: +parts[2] };
     if (parts[0] === 'org') return { kind: 'org', index: +parts[1] };
-    return { kind: 'synth', name: parts[1] };
+    return { kind: 'synth', name: parts[1] || 'lead' };
   }
 
-  _inst(ch) { const k = this.programs[ch] && this.programs[ch].kind; return k === 'sf2' ? this.sf2 : k === 'org' ? this.org : this.synth; }
+  /** Label of the program on a channel, for the main screen. */
+  programLabel(ch, lang = 'en') {
+    const p = this.programs[ch];
+    if (!p) return '';
+    if (p.kind === 'sf2') { const f = this.fonts[p.font]; const i = f ? f.findPreset(p.bank, p.program) : -1; return i >= 0 ? f.presets[i].name : ''; }
+    if (p.kind === 'org') { const inst = this.org.instruments[p.index]; return inst ? inst.name : ''; }
+    const sp = SYNTH_PRESETS[p.name];
+    return sp ? (lang === 'ar' ? sp.label_ar : sp.label) : (p.name === 'kit' ? (lang === 'ar' ? 'الطقم المدمج' : 'Built-in kit') : p.name);
+  }
+
+  _inst(ch) {
+    const p = this.programs[ch];
+    const k = p && p.kind;
+    if (k === 'sf2') return this.fonts[p.font] || this.synth;
+    return k === 'org' ? this.org : this.synth;
+  }
 
   noteOn(ch, n, v, t, d = null) { if (n >= 0 && n <= 127) this._inst(ch).noteOn(ch, n, v, t, d); }
   noteOff(ch, n, t) { this._inst(ch).noteOff(ch, n, t); }
-  setSustain(ch, on) { this.synth.setSustain(ch, on); this.sf2.setSustain(ch, on); this.org.setSustain(ch, on); }
-  setBend(ch, semis) { this.synth.setBend(ch, semis); this.sf2.setBend(ch, semis); this.org.setBend(ch, semis); }
-  allOff(ch = null) { this.synth.allOff(ch); this.sf2.allOff(ch); this.org.allOff(ch); }
+  setSustain(ch, on) { this.synth.setSustain(ch, on); for (const f of this.fonts) f.setSustain(ch, on); this.org.setSustain(ch, on); }
+  setBend(ch, semis) { this.synth.setBend(ch, semis); for (const f of this.fonts) f.setBend(ch, semis); this.org.setBend(ch, semis); }
+  allOff(ch = null) { this.synth.allOff(ch); for (const f of this.fonts) f.allOff(ch); this.org.allOff(ch); }
 }
 
 
@@ -2545,19 +2707,19 @@ const STRINGS = {
     tapToStart: 'Tap to start', midi: 'MIDI', midiNone: 'No keyboard', midiConnect: 'Connect keyboard',
     midiUnsupported: 'This browser has no Web MIDI. Use Chrome on Android with the keyboard on a USB OTG cable.',
     rhythm: 'Rhythm', sudanese: 'Sudanese', western: 'Western', yamahaGroup: 'Yamaha styles',
-    yamahaStyles: 'Yamaha styles', importSty: 'Import styles (.sty / .set)',
+    yamahaStyles: 'Your rhythms', importSty: 'Add rhythm files (.sty)',
     orgGroup: 'ORG 24 set', orgSet: 'ORG 24 set', importOrg: 'Import ORG 24 set (.set)', removeOrg: 'Remove set', noOrg: 'No set imported', instruments: 'instruments', rhythmParts: 'rhythm parts',
     orgLoading: 'Reading the set… (a big file takes a few seconds)', orgNotStored: 'The set plays now but could not be stored offline (too large for this phone); import it again next time.',
     orgHelp: 'An ORG 24 / Music Studio .Set gives Daloka its sampled instruments (pick them as any voice) and its rhythm as a style (Intro, Variation 1/2 = A/B, Fill 1/2, and Variation 3/4 as a second style). Fix a track\'s instrument under Sounds if the guess is wrong. The set\'s tempo is not stored in the file: set it yourself.',
-    fmt_org24: 'this is an ORG 24 (Sofeh) set: import it under “ORG 24 set”, not as a Yamaha style', fmt_isYamaha: 'this is a Yamaha style file: import it under “Yamaha styles”', fmt_notOrg: 'not an ORG 24 .Set file', fmt_korg: 'this is a Korg Pa style, a closed format Daloka cannot read', fmt_notYamaha: 'not a Yamaha style file', removeSty: 'Remove Yamaha styles', noSty: 'No Yamaha styles imported',
-    yamahaHelp: 'Any Yamaha PSR / Tyros / Genos style file (.sty, .prs, .sst) plays here: Intro, Main A/B (and C/D as a second style), Fill, Ending, with the chord following from its CASM. Sudanese Yamaha sets are shared as .sty files; copy them to the phone and pick them here. ORG 24 .Set files are a closed format and cannot be read.',
+    fmt_org24: 'this is an ORG 24 (Sofeh) set: import it under “ORG 24 set”, not as a Yamaha style', fmt_isYamaha: 'this is a Yamaha style file: import it under “Yamaha styles”', fmt_notOrg: 'not an ORG 24 .Set file', fmt_korg: 'this is a Korg Pa style, a closed format Daloka cannot read', fmt_notYamaha: 'not a Yamaha style file', removeSty: 'Remove all', noSty: 'No rhythm files yet',
+    yamahaHelp: 'Any Yamaha PSR / Tyros / Genos style file (.sty, .prs, .sst) plays here: Intro, Main A/B (and C/D as a second entry), Fill, Ending, with the chord following from its CASM. Add single files or a whole folder; they come first in the rhythm list, grouped by folder, and the list has a search box.',
     style: 'Style', tempo: 'Tempo', transpose: 'Transpose', split: 'Split point', chord: 'Chord',
     intro: 'INTRO', mainA: 'A', mainB: 'B', fill: 'FILL', ending: 'END', start: 'START', stop: 'STOP', sync: 'Start with first chord',
     voice: 'Right-hand sound', upper: 'Right hand', lower: 'Left-hand sound', layer: 'Layer two sounds', lowerOn: 'Left hand also sounds', chordMode: 'Chords', fingered: 'Full chords', single: 'One finger',
     voices: 'Voices', mixer: 'Mixer', keys: 'Keys', styleVol: 'Style', drumsVol: 'Drums', master: 'Master',
     more: 'More', registrations: 'Setups', save: 'Save', load: 'Load', slot: 'Setup', holdToSave: 'Tap a slot to load, hold it to save',
     saved: 'Saved to setup', loaded: 'Loaded setup',
-    sounds: 'Sounds', importSF2: 'Import SF2 sound bank', removeSF2: 'Remove sound bank', noSF2: 'Built-in sounds (import an .sf2 for real instruments)',
+    sounds: 'Sound banks', importSF2: 'Add SF2 banks', removeSF2: 'Remove sound bank', noSF2: 'Built-in sounds (add an .sf2 for real instruments)',
     styles: 'Styles', importStyles: 'Import style pack (.json)', exportStyles: 'Export built-in styles', removeStyles: 'Remove imported styles',
     latency: 'Audio latency', keyboard: 'On-screen keyboard', showKeys: 'Show keys', hideKeys: 'Hide keys',
     language: 'العربية', settings: 'Settings', about: 'About', install: 'Install app', installed: 'Installed', keepAwake: 'Keep the screen on',
@@ -2570,25 +2732,35 @@ const STRINGS = {
     lintErrors: 'Style pack problems', imported: 'Imported', error: 'Error', bars: 'bar', panic: 'All notes off',
     drumsTrack: 'Drums', percTrack: 'Percussion', bassTrack: 'Bass', chordTrack: 'Chord', padTrack: 'Pad', phraseTrack: 'Phrase', tracks: 'Style tracks',
     waitingChord: 'Play a chord left of the split',
+    // pickers
+    pickRhythm: 'Rhythm', pickSound: 'Sound', searchRhythms: 'Search rhythms…', searchSounds: 'Search sounds…', noMatch: 'Nothing matches',
+    yourRhythms: 'Your rhythms', builtinRhythms: 'Built-in', setGroup: 'Set instruments', kits: 'Drum kits', bank: 'Bank',
+    noBanksHint: 'Add an SF2 sound bank in Settings for sampled instruments.',
+    partSounds: 'Sounds of the rhythm parts', soundFor: 'Sound',
+    showBuiltin: 'Show built-in rhythms', hideBuiltin: 'Built-in rhythms hidden',
+    importSF2Folder: 'Add a folder of banks', importStyFolder: 'Add a folder of rhythms',
+    sf2Help: 'SoundFont (.sf2) banks give real sampled instruments. Add as many as you like: every bank\'s sounds appear in the sound lists, grouped by bank and family. Drums use the first bank that has a kit.',
+    banksLoaded: 'banks', presets: 'sounds', none: 'None yet', remove: 'Remove', files: 'files', skipped: 'skipped',
+    rhythmFiles: 'rhythm files', fromFolder: 'from',
   },
   ar: {
     app: 'دلوكة', subtitle: 'أورغ سوداني مصاحب',
     tapToStart: 'اضغط للبدء', midi: 'MIDI', midiNone: 'لا يوجد كيبورد', midiConnect: 'وصّل الكيبورد',
     midiUnsupported: 'هذا المتصفح لا يدعم Web MIDI. افتح الصفحة في كروم على أندرويد ووصّل الكيبورد بكابل OTG.',
     rhythm: 'الإيقاع', sudanese: 'سوداني', western: 'غربي', yamahaGroup: 'إيقاعات ياماها',
-    yamahaStyles: 'إيقاعات ياماها', importSty: 'استيراد إيقاعات (.sty / .set)',
+    yamahaStyles: 'إيقاعاتك', importSty: 'أضف ملفات إيقاع (.sty)',
     orgGroup: 'سيت ORG 24', orgSet: 'سيت ORG 24', importOrg: 'استيراد سيت ORG 24 ‏(.set)', removeOrg: 'إزالة السيت', noOrg: 'لا يوجد سيت مستورد', instruments: 'آلة', rhythmParts: 'أجزاء الإيقاع',
     orgLoading: 'جاري قراءة السيت… (الملف الكبير يأخذ ثوانٍ)', orgNotStored: 'السيت يعمل الآن لكن تعذّر حفظه بلا إنترنت (كبير على هذا الهاتف)؛ استورده مرة أخرى في المرة القادمة.',
     orgHelp: 'سيت ORG 24 / Music Studio ‏(.Set) يعطي دلوكة آلاته المسجّلة (اخترها كأي صوت) وإيقاعه كستايل (مقدمة، Variation 1/2 = A/B، ضربة 1/2، وVariation 3/4 كإيقاع ثانٍ). إن أخطأ التخمين في آلة مسار، صحّحها من «بنوك الصوت». سرعة الإيقاع غير محفوظة في الملف: اضبطها بنفسك.',
-    fmt_org24: 'هذا سيت ORG 24 (Sofeh): استورده من «سيت ORG 24» لا كإيقاع ياماها', fmt_isYamaha: 'هذا ملف إيقاع ياماها: استورده من «إيقاعات ياماها»', fmt_notOrg: 'ليس ملف سيت ORG 24', fmt_korg: 'هذا إيقاع Korg Pa، صيغة مغلقة لا يقرأها دلوكة', fmt_notYamaha: 'ليس ملف إيقاع ياماها', removeSty: 'إزالة إيقاعات ياماها', noSty: 'لا توجد إيقاعات ياماها مستوردة',
-    yamahaHelp: 'أي ملف إيقاع ياماها PSR / Tyros / Genos ‏(.sty ‏.prs ‏.sst) يعمل هنا: مقدمة، أساسي A/B (وC/D كإيقاع ثانٍ)، ضربة، خاتمة، والكورد يتبعه من CASM. السيتات السودانية لياماها تُتداول كملفات .sty؛ انسخها إلى الهاتف واخترها هنا. ملفات ORG 24 ‏(.Set) صيغة مغلقة ولا يمكن قراءتها.',
+    fmt_org24: 'هذا سيت ORG 24 (Sofeh): استورده من «سيت ORG 24» لا كإيقاع ياماها', fmt_isYamaha: 'هذا ملف إيقاع ياماها: استورده من «إيقاعات ياماها»', fmt_notOrg: 'ليس ملف سيت ORG 24', fmt_korg: 'هذا إيقاع Korg Pa، صيغة مغلقة لا يقرأها دلوكة', fmt_notYamaha: 'ليس ملف إيقاع ياماها', removeSty: 'إزالة الكل', noSty: 'لا توجد ملفات إيقاع بعد',
+    yamahaHelp: 'أي ملف إيقاع ياماها PSR / Tyros / Genos ‏(.sty ‏.prs ‏.sst) يعمل هنا: مقدمة، أساسي A/B (وC/D كإيقاع ثانٍ)، ضربة، خاتمة، والكورد يتبعه من CASM. أضف ملفات مفردة أو مجلدًا كاملًا؛ تظهر أولًا في قائمة الإيقاعات مرتّبة حسب المجلد، وفي القائمة خانة بحث.',
     style: 'الإيقاع', tempo: 'السرعة', transpose: 'نقل الطبقة', split: 'نقطة الفصل', chord: 'الكورد',
     intro: 'مقدمة', mainA: 'A', mainB: 'B', fill: 'ضربة', ending: 'خاتمة', start: 'تشغيل', stop: 'إيقاف', sync: 'يبدأ مع أول كورد',
     voice: 'صوت اليد اليمنى', upper: 'اليد اليمنى', lower: 'صوت اليد اليسرى', layer: 'صوتان معًا', lowerOn: 'اليد اليسرى تُسمع أيضًا', chordMode: 'الكوردات', fingered: 'كورد كامل', single: 'بإصبع واحد',
     voices: 'الأصوات', mixer: 'الميكسر', keys: 'الكيبورد', styleVol: 'الإيقاع', drumsVol: 'الطبول', master: 'الرئيسي',
     more: 'المزيد', registrations: 'الإعدادات المحفوظة', save: 'حفظ', load: 'تحميل', slot: 'إعداد', holdToSave: 'اضغط خانة لتحميلها، واضغط مطوّلًا لحفظ الإعداد الحالي فيها',
     saved: 'تم الحفظ في الخانة', loaded: 'تم تحميل الخانة',
-    sounds: 'بنوك الصوت', importSF2: 'استيراد بنك صوت SF2', removeSF2: 'إزالة بنك الصوت', noSF2: 'أصوات مدمجة (استورد ملف .sf2 لآلات حقيقية)',
+    sounds: 'بنوك الصوت', importSF2: 'أضف بنوك SF2', removeSF2: 'إزالة بنك الصوت', noSF2: 'أصوات مدمجة (أضف ملف .sf2 لآلات حقيقية)',
     styles: 'الإيقاعات', importStyles: 'استيراد حزمة إيقاعات (.json)', exportStyles: 'تصدير الإيقاعات المدمجة', removeStyles: 'إزالة الإيقاعات المستوردة',
     latency: 'تأخير الصوت', keyboard: 'كيبورد على الشاشة', showKeys: 'أظهر المفاتيح', hideKeys: 'أخفِ المفاتيح',
     language: 'English', settings: 'الإعدادات', about: 'عن التطبيق', install: 'ثبّت التطبيق', installed: 'مثبّت', keepAwake: 'أبقِ الشاشة مضاءة',
@@ -2601,6 +2773,16 @@ const STRINGS = {
     lintErrors: 'مشاكل في حزمة الإيقاعات', imported: 'تم الاستيراد', error: 'خطأ', bars: 'بار', panic: 'إسكات كل النغمات',
     drumsTrack: 'طبول', percTrack: 'إيقاعات', bassTrack: 'باص', chordTrack: 'كورد', padTrack: 'خلفية', phraseTrack: 'جملة', tracks: 'مسارات الإيقاع',
     waitingChord: 'اعزف كوردًا يسار نقطة الفصل',
+    // pickers
+    pickRhythm: 'الإيقاع', pickSound: 'الصوت', searchRhythms: 'ابحث عن إيقاع…', searchSounds: 'ابحث عن صوت…', noMatch: 'لا نتائج',
+    yourRhythms: 'إيقاعاتك', builtinRhythms: 'المدمجة', setGroup: 'آلات السيت', kits: 'أطقم الطبول', bank: 'بنك',
+    noBanksHint: 'أضف بنك صوت SF2 من الإعدادات لتحصل على آلات حقيقية.',
+    partSounds: 'أصوات مسارات الإيقاع', soundFor: 'صوت',
+    showBuiltin: 'أظهر الإيقاعات المدمجة', hideBuiltin: 'الإيقاعات المدمجة مخفية',
+    importSF2Folder: 'أضف مجلد بنوك', importStyFolder: 'أضف مجلد إيقاعات',
+    sf2Help: 'بنوك SoundFont ‏(.sf2) تعطي آلات مسجّلة حقيقية. أضف ما شئت منها: أصوات كل بنك تظهر في قوائم الأصوات مرتّبة حسب البنك والعائلة. الطبول تأخذ أول بنك فيه طقم.',
+    banksLoaded: 'بنك', presets: 'صوت', none: 'لا شيء بعد', remove: 'إزالة', files: 'ملف', skipped: 'تم تجاوز',
+    rhythmFiles: 'ملف إيقاع', fromFolder: 'من',
   },
 };
 
@@ -2609,9 +2791,195 @@ function t(lang, key) {
 }
 
 
+// ───── js/catalog.js ─────
+// Pure helpers for the two pickers (rhythm list, sound list): ordering, grouping,
+// search. No browser APIs (runs under node for the tests).
+
+/** GM program (0–127) → family name, for grouping a bank's presets. */
+const GM_FAMILIES = [
+  ['Piano', 'بيانو'], ['Chromatic percussion', 'إيقاع نغمي'], ['Organ', 'أورغ'], ['Guitar', 'جيتار'],
+  ['Bass', 'باص'], ['Strings', 'وتريات'], ['Ensemble', 'مجموعات'], ['Brass', 'نفخ نحاسي'],
+  ['Reed', 'ناي وساكس'], ['Pipe', 'فلوت'], ['Synth lead', 'ليد'], ['Synth pad', 'خلفيات'],
+  ['Synth effects', 'مؤثرات سينث'], ['Ethnic', 'آلات شرقية'], ['Percussive', 'إيقاعية'], ['Sound effects', 'مؤثرات صوتية'],
+];
+function gmFamily(program, lang = 'en') {
+  const f = GM_FAMILIES[Math.max(0, Math.min(15, Math.floor(program / 8)))];
+  return lang === 'ar' ? f[1] : f[0];
+}
+
+/** Rhythm list order: the player's own files first, then the ORG set, then the built-ins. */
+const GROUP_ORDER = ['yamaha', 'org', 'sudan', 'west'];
+
+function orderStyles(styles, { showBuiltin = true } = {}) {
+  const rank = (s) => { const i = GROUP_ORDER.indexOf(s.group); return i < 0 ? 99 : i; };
+  // Own files: folders alphabetically, then the files picked one by one (no folder), each by name.
+  const cmpYamaha = (a, b) => {
+    const fa = a.folder || '', fb = b.folder || '';
+    if (!fa !== !fb) return fa ? -1 : 1;
+    return fa.localeCompare(fb, undefined, { sensitivity: 'base' }) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+  };
+  return styles
+    .filter((s) => showBuiltin || !(s.group === 'sudan' || s.group === 'west'))
+    .map((s, i) => ({ s, i }))
+    .sort((a, b) => rank(a.s) - rank(b.s) || (a.s.group === 'yamaha' ? cmpYamaha(a.s, b.s) : a.i - b.i))
+    .map((x) => x.s);
+}
+
+/** The neighbour of `id` in the ordered list, wrapping; null when the list is empty. */
+function stepStyle(ordered, id, dir) {
+  if (!ordered.length) return null;
+  const i = ordered.findIndex((s) => s.id === id);
+  if (i < 0) return ordered[0];
+  return ordered[(i + dir + ordered.length) % ordered.length];
+}
+
+/** Rhythm list groups: [{ key, title, items: [{ key, label, meta }] }]. */
+function styleGroups(ordered, { lang = 'en', labels = {} } = {}) {
+  const groups = [];
+  const byKey = new Map();
+  const yamahaFolders = new Set(ordered.filter((s) => s.group === 'yamaha').map((s) => s.folder || ''));
+  for (const st of ordered) {
+    let gkey = st.group, title = labels[st.group] || st.group;
+    if (st.group === 'yamaha' && yamahaFolders.size > 1) { gkey = 'yamaha:' + (st.folder || ''); title = st.folder || labels.yamaha || 'Styles'; }
+    let g = byKey.get(gkey);
+    if (!g) { g = { key: gkey, title, items: [] }; byKey.set(gkey, g); groups.push(g); }
+    const tempo = st.meter[1] === 8 ? `♩. ${Math.round(st.tempo * 2 / 3)}` : `♩ ${st.tempo}`;
+    g.items.push({ key: st.id, label: lang === 'ar' ? st.name_ar : st.name, meta: `${st.meter[0]}/${st.meter[1]} · ${tempo}` });
+  }
+  return groups;
+}
+
+/**
+ * Sound list groups from an engine program list (engine.programList()).
+ * SF2 presets are grouped by bank file and GM family; the set's instruments and the
+ * built-in presets keep their own groups.
+ */
+function soundGroups(programs, { lang = 'en', labels = {} } = {}) {
+  const groups = [];
+  const byKey = new Map();
+  const add = (gkey, title, item) => {
+    let g = byKey.get(gkey);
+    if (!g) { g = { key: gkey, title, items: [] }; byKey.set(gkey, g); groups.push(g); }
+    g.items.push(item);
+  };
+  for (const p of programs) {
+    const label = lang === 'ar' ? p.label_ar : p.label;
+    if (p.kind === 'sf2') {
+      const fam = p.bank === 128 ? (labels.kits || 'Drum kits') : p.bank === 0 ? gmFamily(p.program, lang) : `${labels.bank || 'Bank'} ${p.bank}`;
+      add(`sf2:${p.font}:${p.bank === 0 ? Math.floor(p.program / 8) : 'b' + p.bank}`, `${p.fontName} · ${fam}`, { key: p.key, label, meta: `${p.bank}:${p.program}` });
+    } else if (p.kind === 'org') add('org', labels.org || 'Set', { key: p.key, label, meta: '' });
+    else add('synth', labels.synth || 'Built-in', { key: p.key, label, meta: '' });
+  }
+  // Built-in presets last: the sampled sounds are what the player went looking for.
+  const synth = groups.find((g) => g.key === 'synth');
+  if (synth) { groups.splice(groups.indexOf(synth), 1); groups.push(synth); }
+  return groups;
+}
+
+/** Flat ordered keys of a group list (for prev / next). */
+function flatKeys(groups) {
+  const out = [];
+  for (const g of groups) for (const it of g.items) out.push(it.key);
+  return out;
+}
+
+/** Case-insensitive search over label + meta + group title; empty query keeps everything. */
+function filterGroups(groups, query) {
+  const q = (query || '').trim().toLowerCase();
+  if (!q) return groups;
+  const words = q.split(/\s+/);
+  const hit = (s) => { const t = s.toLowerCase(); return words.every((w) => t.includes(w)); };
+  return groups
+    .map((g) => ({ ...g, items: hit(g.title) ? g.items : g.items.filter((it) => hit(`${it.label} ${it.meta}`)) }))
+    .filter((g) => g.items.length);
+}
+
+
+// ───── js/sheet.js ─────
+// A full-screen list sheet (rhythms, sounds): search box, sticky group headers,
+// one row per item, the active row marked. Tapping a row picks it and the sheet
+// stays open so the player can go through several in a row; ✕ / Back closes it.
+
+
+class ListSheet {
+  constructor(dialog) {
+    this.el = dialog;
+    this.title = dialog.querySelector('.sheet-title');
+    this.actions = dialog.querySelector('.sheet-actions');
+    this.search = dialog.querySelector('input[type=search]');
+    this.body = dialog.querySelector('.list-body');
+    this.empty = dialog.querySelector('.list-empty');
+    this.groups = [];
+    this.active = null;
+    this.onPick = null;
+    this.rows = new Map();
+    dialog.querySelector('.sheet-close').addEventListener('click', () => this.close());
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) this.close(); });   // backdrop
+    this.search.addEventListener('input', () => this.render());
+  }
+
+  /** open({ title, groups, active, onPick, actions: [HTMLElement], hint }) */
+  open({ title, groups, active, onPick, actions = [], hint = '', placeholder = '' }) {
+    this.title.textContent = title;
+    this.groups = groups;
+    this.active = active;
+    this.onPick = onPick;
+    this.actions.innerHTML = '';
+    for (const a of actions) this.actions.appendChild(a);
+    this.search.value = '';
+    this.search.placeholder = placeholder;
+    this.empty.textContent = hint;
+    this.render();
+    if (!this.el.open) this.el.showModal();
+    const row = this.rows.get(this.active);
+    if (row) row.scrollIntoView({ block: 'center' });
+  }
+
+  close() { if (this.el.open) this.el.close(); }
+  get isOpen() { return this.el.open; }
+
+  setActive(key) {
+    const prev = this.rows.get(this.active);
+    if (prev) { prev.classList.remove('on'); prev.setAttribute('aria-selected', 'false'); }
+    this.active = key;
+    const row = this.rows.get(key);
+    if (row) { row.classList.add('on'); row.setAttribute('aria-selected', 'true'); }
+  }
+
+  render() {
+    const shown = filterGroups(this.groups, this.search.value);
+    this.body.innerHTML = '';
+    this.rows.clear();
+    let count = 0;
+    for (const g of shown) {
+      const h = document.createElement('div');
+      h.className = 'list-group';
+      h.textContent = g.title;
+      this.body.appendChild(h);
+      for (const it of g.items) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'list-row' + (it.key === this.active ? ' on' : '');
+        b.setAttribute('role', 'option');
+        b.setAttribute('aria-selected', it.key === this.active ? 'true' : 'false');
+        b.innerHTML = `<span class="list-label"></span><span class="list-meta"></span><span class="list-check">✓</span>`;
+        b.querySelector('.list-label').textContent = it.label;
+        b.querySelector('.list-meta').textContent = it.meta || '';
+        b.addEventListener('click', () => { this.setActive(it.key); if (this.onPick) this.onPick(it.key); });
+        this.body.appendChild(b);
+        this.rows.set(it.key, b);
+        count++;
+      }
+    }
+    this.empty.hidden = count > 0;
+  }
+}
+
+
 // ───── js/app.js ─────
 // Daloka — app controller. Wires MIDI/screen keys → chord zone + voices,
-// the sequencer transport, setups (registrations), imports and the UI.
+// the sequencer transport, the two pickers (rhythm, sound), setups
+// (registrations), imports and the UI.
 
 
 
@@ -2624,26 +2992,30 @@ function t(lang, key) {
 
 
 
-const VERSION = '0.4.0';
+
+
+const VERSION = '0.5.0';
 
 // GM programs to prefer for each built-in voice name when an SF2 is loaded.
 const GM_FOR = { piano: 0, organ: 16, accordion: 21, oud: 24, tambour: 105, strings: 48, brass: 61, sax: 65, flute: 73, bass: 33, lead: 81 };
 const TRACK_LABEL = { drums: 'drumsTrack', perc: 'percTrack', bass: 'bassTrack', chord: 'chordTrack', pad: 'padTrack', phrase: 'phraseTrack' };
+const ROLE_OF_CH = { 0: 'upper', 1: 'lower', 2: 'bass', 3: 'chord', 4: 'pad', 5: 'phrase', 6: 'chord', 7: 'phrase', 9: 'drums', 10: 'perc' };
 
 const $ = (id) => document.getElementById(id);
 
 const settings = Object.assign({
   lang: (navigator.language || '').startsWith('ar') ? 'ar' : 'en',
   styleId: 'tumtum', tempo: null, transpose: 0, split: 54, chordMode: 'fingered',
-  lowerOn: false, layer: false, keysShown: true, keepAwake: true, seenHint: false,
+  lowerOn: false, layer: false, keysShown: true, keepAwake: true, seenHint: false, showBuiltin: true, moreOpen: false,
   programs: {}, bus: { keys: 0.8, style: 0.8, drums: 0.8, master: 0.9 }, mute: {},
   regs: [null, null, null, null, null, null, null, null],
 }, store.loadSettings());
 
-let audio, engine, seq, midi;
+let audio, engine, seq, midi, sheet;
 let styles = [];                 // compiled styles (built-in + imported)
 let importedPack = null;
-let styFiles = [];               // imported Yamaha style files [{ name, buf }]
+let styFiles = [];               // imported Yamaha style files [{ name, folder, buf }]
+let sf2Banks = [];               // loaded SF2 banks [{ name, buf }], in engine order
 let orgSet = null;               // { name, buf, parsed } — the imported ORG 24 set
 const held = new Map();          // raw note → channels it sounds on
 const chordNotes = new Set();    // raw notes in the chord zone
@@ -2651,12 +3023,14 @@ let lastChord = null;
 let deferredInstall = null;
 let wakeLock = null;
 const keyEls = new Map();        // note → on-screen key element
+let sheetMode = null;            // 'rhythm' | { sound: ch } while the list sheet is open
+let sheetStartBtn = null;        // the START/STOP mirrored into the rhythm list
 
 // ───────────────────────── boot ─────────────────────────
 function boot() {
   applyLang();
   $('gateBtn').addEventListener('click', startAudio, { once: true });
-  $('langBtn').addEventListener('click', () => { settings.lang = settings.lang === 'ar' ? 'en' : 'ar'; persist(); applyLang(); renderAll(); });
+  $('langBtn').addEventListener('click', () => { settings.lang = settings.lang === 'ar' ? 'en' : 'ar'; persist(); applyLang(); if (engine) renderAll(); });
   $('version').textContent = VERSION;
   $('gateVersion').textContent = 'v' + VERSION;
   if (false) {
@@ -2729,6 +3103,8 @@ async function startAudio() {
   seq.on(onSeqEvent);
   for (const [k, v] of Object.entries(settings.bus)) (k === 'master' ? audio.setMaster(v) : audio.setBus(k, v));
   seq.mute = settings.mute || {};
+  sheet = new ListSheet($('listSheet'));
+  $('listSheet').addEventListener('close', () => { sheetMode = null; sheetStartBtn = null; });
 
   await loadStoredFiles();
   buildStyles();
@@ -2766,8 +3142,15 @@ async function connectMidi(silent = false) {
 
 async function loadStoredFiles() {
   try {
-    const sf2 = await store.getFile('sf2');
-    if (sf2 && sf2.buf) engine.loadSF2(sf2.buf, sf2.name);
+    let banks = await store.getFile('sf2banks');
+    if (!banks) {
+      // 0.4 kept a single bank under 'sf2': carry it over.
+      const one = await store.getFile('sf2');
+      if (one && one.buf) { banks = [one]; try { await store.putFile('sf2banks', banks); await store.deleteFile('sf2'); } catch (_) { /* keep going */ } }
+    }
+    for (const b of banks || []) {
+      try { engine.loadSF2(b.buf, b.name); sf2Banks.push(b); } catch (err) { console.warn('bank skipped', b.name, err.message); }
+    }
   } catch (_) { /* no IndexedDB */ }
   try { importedPack = await store.getFile('styles'); } catch (_) { importedPack = null; }
   try { styFiles = (await store.getFile('styfiles')) || []; } catch (_) { styFiles = []; }
@@ -2791,7 +3174,8 @@ function buildStyles() {
   for (const f of styFiles) {
     try {
       const base = f.name.replace(/\.[^.]+$/, '');
-      for (const st of convertStyle(new Uint8Array(f.buf), { id: 'sty:' + base, name: base })) styles.push(st);
+      const id = 'sty:' + (f.folder ? f.folder + '/' : '') + base;
+      for (const st of convertStyle(new Uint8Array(f.buf), { id, name: base })) { st.folder = f.folder || ''; styles.push(st); }
     } catch (err) { console.warn('style file skipped', f.name, err.message); }
   }
   if (orgSet && orgSet.parsed) {
@@ -2825,30 +3209,36 @@ function synthForGM(gm) {
   return 'lead';
 }
 function programForGM(gm) {
-  if (engine.hasSF2 && engine.sf2.findPreset(0, gm) >= 0) return { kind: 'sf2', bank: 0, program: gm };
+  const hit = engine.findPreset(0, gm);
+  if (hit) return { kind: 'sf2', font: hit.font, bank: 0, program: gm };
   return { kind: 'synth', name: synthForGM(gm) };
+}
+
+/** The rhythm list as the player sees it: own files first, built-ins last (or hidden). */
+function orderedStyles() {
+  const o = orderStyles(styles, { showBuiltin: settings.showBuiltin });
+  return o.length ? o : orderStyles(styles, { showBuiltin: true });   // never an empty list
 }
 
 function currentStyle() { return styles.find((s) => s.id === settings.styleId) || styles[0]; }
 
 function selectStyle(id, { keepPrograms = false } = {}) {
-  const st = styles.find((s) => s.id === id) || styles[0];
+  const st = styles.find((s) => s.id === id) || orderedStyles()[0] || styles[0];
   settings.styleId = st.id;
   seq.setStyle(st);
   settings.tempo = st.tempo;
   if (!keepPrograms) applyStyleVoices(st);
   persist();
-  renderStyles();
+  renderRhythm();
   renderStatus();
-  renderVoices();
+  renderSound();
+  if (sheetMode === 'rhythm') sheet.setActive(st.id);
 }
 
-/** Pick each style voice from the SF2 when it has the GM program, else the built-in. */
+/** Pick each style voice from the banks when one has the GM program, else the built-in. */
 function programFor(voiceName) {
-  if (engine.hasSF2) {
-    const gm = GM_FOR[voiceName];
-    if (gm !== undefined && engine.sf2.findPreset(0, gm) >= 0) return { kind: 'sf2', bank: 0, program: gm };
-  }
+  const gm = GM_FOR[voiceName];
+  if (gm !== undefined) { const hit = engine.findPreset(0, gm); if (hit) return { kind: 'sf2', font: hit.font, bank: 0, program: gm }; }
   return { kind: 'synth', name: voiceName in GM_FOR ? voiceName : 'lead' };
 }
 
@@ -2869,8 +3259,8 @@ function applyStyleVoices(st) {
     engine.setProgram(+ch, programForGM(gm));
     settings.programs[ch] = engine.programKey(+ch);
   }
+  const kit = engine.findKit() || { kind: 'synth', name: 'kit' };
   for (const ch of [CH.drums, CH.perc]) {
-    const kit = engine.hasSF2 && engine.sf2.findPreset(128, 0) >= 0 ? { kind: 'sf2', bank: 128, program: 0 } : { kind: 'synth', name: 'kit' };
     engine.setProgram(ch, kit);
     settings.programs[ch] = engine.programKey(ch);
   }
@@ -2879,7 +3269,7 @@ function applyStyleVoices(st) {
 function restorePrograms() {
   for (const [ch, key] of Object.entries(settings.programs)) {
     if (!engine.setProgram(+ch, Engine.parseKey(key))) {
-      engine.setProgram(+ch, +ch === 9 || +ch === 10 ? { kind: 'synth', name: 'kit' } : { kind: 'synth', name: 'lead' });
+      engine.setProgram(+ch, +ch === 9 || +ch === 10 ? (engine.findKit() || { kind: 'synth', name: 'kit' }) : { kind: 'synth', name: 'lead' });
       settings.programs[ch] = engine.programKey(+ch);
     }
   }
@@ -2930,6 +3320,7 @@ function onSeqEvent(type, data) {
 // ───────────────────────── UI binding ─────────────────────────
 function bindUI() {
   document.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => act(b.dataset.act)));
+  document.querySelectorAll('[data-nav]').forEach((b) => b.addEventListener('click', () => nav(b.dataset.nav)));
   $('startBtn').addEventListener('click', () => { if (seq.playing) seq.stop(); else seq.start(); });
   $('introBtn').addEventListener('click', () => { if (!seq.playing) seq.start({ intro: true }); });
   $('mainABtn').addEventListener('click', () => seq.setVariation('A'));
@@ -2937,25 +3328,31 @@ function bindUI() {
   $('fillBtn').addEventListener('click', () => seq.fill());
   $('endingBtn').addEventListener('click', () => seq.ending());
   $('syncBtn').addEventListener('click', () => seq.armSyncStart(!seq.syncArmed));
-  $('lowerOnBtn').addEventListener('click', () => { settings.lowerOn = !settings.lowerOn; persist(); renderVoices(); });
-  $('layerBtn').addEventListener('click', () => { settings.layer = !settings.layer; persist(); renderVoices(); });
-  $('chordModeBtn').addEventListener('click', () => { settings.chordMode = settings.chordMode === 'fingered' ? 'single' : 'fingered'; persist(); renderVoices(); });
+  $('lowerOnBtn').addEventListener('click', () => { settings.lowerOn = !settings.lowerOn; persist(); renderSound(); });
+  $('layerBtn').addEventListener('click', () => { settings.layer = !settings.layer; persist(); renderSound(); });
+  $('chordModeBtn').addEventListener('click', () => { settings.chordMode = settings.chordMode === 'fingered' ? 'single' : 'fingered'; persist(); renderSound(); });
   $('panicBtn').addEventListener('click', panic);
-  $('upperSel').addEventListener('change', (e) => setChannelProgram(CH.upper, e.target.value));
-  $('lowerSel').addEventListener('change', (e) => setChannelProgram(CH.lower, e.target.value));
   $('keysToggle').addEventListener('click', () => { settings.keysShown = !settings.keysShown; persist(); renderKeyboard(); });
   $('awakeBtn').addEventListener('click', () => { settings.keepAwake = !settings.keepAwake; persist(); settings.keepAwake ? keepAwake() : releaseAwake(); renderSettings(); });
+  $('moreBtn').addEventListener('click', () => { settings.moreOpen = !settings.moreOpen; persist(); renderMore(); });
+  $('builtinBtn').addEventListener('click', () => { settings.showBuiltin = !settings.showBuiltin; persist(); renderSettings(); renderRhythm(); });
+
+  // The pickers.
+  $('rhythmBtn').addEventListener('click', openRhythmList);
+  $('soundBtn').addEventListener('click', () => openSoundList(CH.upper));
+  $('lowerBtn').addEventListener('click', () => openSoundList(CH.lower));
 
   $('settingsBtn').addEventListener('click', () => { renderSettings(); $('settings').showModal(); });
   $('closeSettings').addEventListener('click', () => $('settings').close());
-  $('sf2File').addEventListener('change', importSF2);
-  $('sf2Remove').addEventListener('click', async () => { await store.deleteFile('sf2'); engine.sf2.font = null; engine.sf2.buffers.clear(); applyStyleVoices(currentStyle()); renderSettings(); renderVoices(); });
+  $('sf2File').addEventListener('change', (e) => importSF2([...e.target.files], e.target));
+  $('sf2Folder').addEventListener('change', (e) => importSF2([...e.target.files].filter((f) => /\.sf2$/i.test(f.name)), e.target));
   $('styleFile').addEventListener('change', importStyles);
   $('styleExport').addEventListener('click', () => { const o = $('styleExportOut'); o.hidden = !o.hidden; o.textContent = JSON.stringify(STYLE_PACK, null, 1); });
   $('styleRemove').addEventListener('click', async () => { await store.deleteFile('styles'); importedPack = null; buildStyles(); selectStyle(settings.styleId); renderSettings(); });
-  $('styFile').addEventListener('change', importSty);
+  $('styFile').addEventListener('change', (e) => importSty([...e.target.files], e.target));
+  $('styFolder').addEventListener('change', (e) => importSty([...e.target.files].filter((f) => /\.(sty|prs|sst|bcs|pst)$/i.test(f.name)), e.target));
   $('orgFile').addEventListener('change', importOrg);
-  $('orgRemove').addEventListener('click', async () => { await store.deleteFile('orgset'); orgSet = null; engine.org.unload(); buildStyles(); selectStyle(settings.styleId); renderSettings(); renderVoices(); });
+  $('orgRemove').addEventListener('click', async () => { await store.deleteFile('orgset'); orgSet = null; engine.org.unload(); buildStyles(); selectStyle(settings.styleId); renderSettings(); renderSound(); });
   $('styRemove').addEventListener('click', async () => { await store.deleteFile('styfiles'); styFiles = []; buildStyles(); selectStyle(settings.styleId); renderSettings(); });
   document.querySelectorAll('input[data-bus]').forEach((r) => r.addEventListener('input', () => {
     const v = +r.value; settings.bus[r.dataset.bus] = v; persist();
@@ -2980,7 +3377,13 @@ function bindUI() {
   buildKeyboard();
   // Computer keyboard for desktop testing: a s d f g h j k = C D E F G A B C (upper), z x c v b n m = lower octave.
   const map = { z: 48, s: 49, x: 50, d: 51, c: 52, v: 53, g: 54, b: 55, h: 56, n: 57, j: 58, m: 59, q: 60, '2': 61, w: 62, '3': 63, e: 64, r: 65, '5': 66, t: 67, '6': 68, y: 69, '7': 70, u: 71, i: 72 };
-  window.addEventListener('keydown', (e) => { if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return; if (map[e.key] !== undefined) noteOn(map[e.key], 100); if (e.key === ' ') { e.preventDefault(); seq.toggle(); } });
+  window.addEventListener('keydown', (e) => {
+    if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (map[e.key] !== undefined) noteOn(map[e.key], 100);
+    if (e.key === ' ') { e.preventDefault(); seq.toggle(); }
+    if (e.key === 'ArrowDown') nav('style+'); if (e.key === 'ArrowUp') nav('style-');
+    if (e.key === 'ArrowRight') nav('sound+'); if (e.key === 'ArrowLeft') nav('sound-');
+  });
   window.addEventListener('keyup', (e) => { if (map[e.key] !== undefined) noteOff(map[e.key]); });
 }
 
@@ -2998,10 +3401,66 @@ function act(a) {
   renderKeyboard();
 }
 
+/** ‹ › on the two pickers: step through the same order the lists show. */
+function nav(a) {
+  const dir = a.endsWith('+') ? 1 : -1;
+  if (a.startsWith('style')) {
+    const next = stepStyle(orderedStyles(), settings.styleId, dir);
+    if (next) selectStyle(next.id);
+  } else {
+    const keys = flatKeys(soundGroups(engine.programList(false), { lang: settings.lang }));
+    if (!keys.length) return;
+    const i = keys.indexOf(engine.programKey(CH.upper));
+    pickSound(CH.upper, keys[(i + dir + keys.length) % keys.length]);
+  }
+}
+
 function setChannelProgram(ch, key) {
   engine.setProgram(ch, Engine.parseKey(key));
   settings.programs[ch] = engine.programKey(ch);
   persist();
+}
+
+/** A sound chosen from a list or an arrow: set it, show it, and let it be heard. */
+function pickSound(ch, key) {
+  setChannelProgram(ch, key);
+  renderSound();
+  if (sheetMode && sheetMode.sound === ch) sheet.setActive(engine.programKey(ch));
+  if ($('settings').open) renderPartVoices();
+  if (!seq.playing && held.size === 0) {
+    const n = ch === CH.drums || ch === CH.perc ? 63 : ch === CH.bass ? 48 : 60;
+    engine.noteOn(ch, n, 96, audio.ctx.currentTime, 0.6);
+  }
+}
+
+// ───────────────────────── the pickers ─────────────────────────
+function openRhythmList() {
+  const labels = { yamaha: t(settings.lang, 'yourRhythms'), org: t(settings.lang, 'orgGroup'), sudan: t(settings.lang, 'sudanese'), west: t(settings.lang, 'western') };
+  const groups = styleGroups(orderedStyles(), { lang: settings.lang, labels });
+  sheetStartBtn = document.createElement('button');
+  sheetStartBtn.className = 'btn start';
+  sheetStartBtn.addEventListener('click', () => { if (seq.playing) seq.stop(); else seq.start(); });
+  sheetMode = 'rhythm';
+  sheet.open({
+    title: t(settings.lang, 'pickRhythm'), groups, active: settings.styleId, placeholder: t(settings.lang, 'searchRhythms'), hint: t(settings.lang, 'noMatch'),
+    actions: [sheetStartBtn],
+    onPick: (id) => selectStyle(id),
+  });
+  renderTransport();
+}
+
+function openSoundList(ch) {
+  const forDrums = ch === CH.drums || ch === CH.perc;
+  const labels = { kits: t(settings.lang, 'kits'), bank: t(settings.lang, 'bank'), org: t(settings.lang, 'setGroup'), synth: t(settings.lang, 'builtinRhythms') };
+  const groups = soundGroups(engine.programList(forDrums), { lang: settings.lang, labels });
+  const role = ROLE_OF_CH[ch];
+  const title = ch === CH.upper ? t(settings.lang, 'voice') : ch === CH.lower ? t(settings.lang, 'lower') : `${t(settings.lang, 'soundFor')}: ${t(settings.lang, TRACK_LABEL[role] || role)}`;
+  sheetMode = { sound: ch };
+  sheet.open({
+    title, groups, active: engine.programKey(ch), placeholder: t(settings.lang, 'searchSounds'),
+    hint: engine.hasSF2 ? t(settings.lang, 'noMatch') : t(settings.lang, 'noBanksHint'),
+    onPick: (key) => pickSound(ch, key),
+  });
 }
 
 // ───────────────────────── registrations ─────────────────────────
@@ -3034,21 +3493,36 @@ function loadReg(i) {
 }
 
 // ───────────────────────── imports ─────────────────────────
-async function importSF2(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    const buf = await file.arrayBuffer();
-    engine.loadSF2(buf, file.name);
-    await store.putFile('sf2', { name: file.name, buf });
-    applyStyleVoices(currentStyle());
-    persist();
-    renderSettings(); renderVoices();
-    toast(`${t(settings.lang, 'imported')}: ${engine.sf2.name}`);
-  } catch (err) {
-    toast(`${t(settings.lang, 'error')}: ${err.message}`, 5000);
+async function importSF2(files, input) {
+  if (!files.length) { if (input) input.value = ''; return; }
+  const added = [], bad = [];
+  for (const file of files) {
+    try {
+      const buf = await file.arrayBuffer();
+      engine.loadSF2(buf, file.name);
+      sf2Banks = sf2Banks.filter((b) => b.name !== file.name);
+      sf2Banks.push({ name: file.name, buf });
+      added.push(file.name);
+    } catch (err) { bad.push(`${file.name}: ${err.message}`); }
   }
-  e.target.value = '';
+  // The engine keeps banks in load order; a re-import of a known name replaced it in place, so mirror that order.
+  sf2Banks.sort((a, b) => engine.fonts.findIndex((f) => f.fileName === a.name) - engine.fonts.findIndex((f) => f.fileName === b.name));
+  try { await store.putFile('sf2banks', sf2Banks); } catch (_) { toast(t(settings.lang, 'orgNotStored'), 6000); }
+  if (added.length) applyStyleVoices(currentStyle());
+  persist();
+  renderSettings(); renderSound();
+  if (bad.length) toast(`${t(settings.lang, 'error')}: ${bad.slice(0, 2).join(' · ')}`, 7000);
+  else toast(`${t(settings.lang, 'imported')}: ${added.length} ${t(settings.lang, 'banksLoaded')}`);
+  if (input) input.value = '';
+}
+
+async function removeSF2(index) {
+  engine.removeSF2(index);
+  sf2Banks.splice(index, 1);
+  try { await store.putFile('sf2banks', sf2Banks); } catch (_) { /* ignore */ }
+  for (const ch of Object.keys(settings.programs)) settings.programs[ch] = engine.programKey(+ch);
+  persist();
+  renderSettings(); renderSound();
 }
 
 async function importStyles(e) {
@@ -3071,26 +3545,33 @@ async function importStyles(e) {
   e.target.value = '';
 }
 
-async function importSty(e) {
-  const files = [...e.target.files];
-  if (!files.length) return;
+/** The folder a picked file came from (folder import), else ''. */
+function folderOf(file) {
+  const rel = file.webkitRelativePath || '';
+  const parts = rel.split('/');
+  return parts.length > 1 ? parts.slice(0, -1).join('/') : '';
+}
+
+async function importSty(files, input) {
+  if (!files.length) { if (input) input.value = ''; return; }
   const added = [], bad = [];
   for (const file of files) {
     try {
       const buf = await file.arrayBuffer();
       convertStyle(new Uint8Array(buf), { id: 'x', name: 'x' });   // parse once so a bad file is refused here
-      styFiles = styFiles.filter((f) => f.name !== file.name);
-      styFiles.push({ name: file.name, buf });
-      added.push(file.name.replace(/\.[^.]+$/, ''));
+      const folder = folderOf(file);
+      styFiles = styFiles.filter((f) => !(f.name === file.name && (f.folder || '') === folder));
+      styFiles.push({ name: file.name, folder, buf });
+      added.push({ name: file.name.replace(/\.[^.]+$/, ''), folder });
     } catch (err) { bad.push(`${file.name}: ${t(settings.lang, 'fmt_' + err.message) !== 'fmt_' + err.message ? t(settings.lang, 'fmt_' + err.message) : err.message}`); }
   }
-  try { await store.putFile('styfiles', styFiles); } catch (_) { /* no IndexedDB */ }
+  try { await store.putFile('styfiles', styFiles); } catch (_) { toast(t(settings.lang, 'orgNotStored'), 6000); }
   buildStyles();
-  if (added.length) selectStyle('sty:' + added[0]);
+  if (added.length) selectStyle('sty:' + (added[0].folder ? added[0].folder + '/' : '') + added[0].name);
   renderSettings();
-  if (bad.length) toast(`${t(settings.lang, 'error')}: ${bad.slice(0, 2).join(' · ')}`, 9000);
-  else toast(`${t(settings.lang, 'imported')}: ${added.join(', ')}`);
-  e.target.value = '';
+  if (bad.length) toast(`${t(settings.lang, 'imported')}: ${added.length} · ${t(settings.lang, 'skipped')} ${bad.length} — ${bad.slice(0, 2).join(' · ')}`, 9000);
+  else toast(`${t(settings.lang, 'imported')}: ${added.length} ${t(settings.lang, 'rhythmFiles')}`);
+  if (input) input.value = '';
 }
 
 async function importOrg(e) {
@@ -3108,7 +3589,7 @@ async function importOrg(e) {
     buildStyles();
     const first = styles.find((s) => s.org);
     if (first) selectStyle(first.id);
-    renderSettings(); renderVoices();
+    renderSettings(); renderSound();
     toast(`${t(settings.lang, 'imported')}: ${file.name} — ${orgSet.parsed.instruments.length} ${t(settings.lang, 'instruments')}`, 5000);
   } catch (err) {
     const key = String(err.message || err);
@@ -3126,20 +3607,19 @@ function applyLang() {
   renderInstall();
 }
 
-function renderAll() { renderStyles(); renderStatus(); renderTransport(); renderVoices(); renderRegs(); renderKeyboard(); }
+function renderAll() { renderRhythm(); renderStatus(); renderTransport(); renderSound(); renderRegs(); renderKeyboard(); renderMore(); }
 
-function renderStyles() {
-  const boxes = { sudan: $('sudanChips'), west: $('westChips'), yamaha: $('yamahaChips'), org: $('orgChips') };
-  for (const b of Object.values(boxes)) b.innerHTML = '';
-  $('yamahaGrp').hidden = !styles.some((s) => s.group === 'yamaha');
-  $('orgGrp').hidden = !styles.some((s) => s.group === 'org');
-  for (const st of styles) {
-    const b = document.createElement('button');
-    b.className = 'btn' + (st.id === settings.styleId ? ' on' : '');
-    b.innerHTML = `${settings.lang === 'ar' ? st.name_ar : st.name}<small>${st.meter[0]}/${st.meter[1]}${st.imported ? ' ✎' : ''}</small>`;
-    b.addEventListener('click', () => selectStyle(st.id));
-    (boxes[st.group] || boxes.west).appendChild(b);
-  }
+function renderRhythm() {
+  const st = currentStyle();
+  if (!st) return;
+  $('rhythmName').textContent = settings.lang === 'ar' ? st.name_ar : st.name;
+  const grp = st.group === 'yamaha' ? (st.folder || t(settings.lang, 'yourRhythms')) : st.group === 'org' ? t(settings.lang, 'orgGroup') : t(settings.lang, st.group === 'sudan' ? 'sudanese' : 'western');
+  $('rhythmMeta').textContent = `${grp} · ${st.meter[0]}/${st.meter[1]}`;
+}
+
+function renderMore() {
+  $('more').hidden = !settings.moreOpen;
+  $('moreBtn').classList.toggle('on', !!settings.moreOpen);
 }
 
 function noteLabel(n) { return NOTE_NAMES[n % 12] + (Math.floor(n / 12) - 1); }
@@ -3168,25 +3648,23 @@ function renderTransport() {
   set('syncBtn', seq.syncArmed);
   const s = $('startBtn');
   s.classList.toggle('on', seq.playing);
-  s.textContent = t(settings.lang, seq.playing ? 'stop' : 'start');
+  $('startLabel').textContent = t(settings.lang, seq.playing ? 'stop' : 'start');
+  if (sheetStartBtn) { sheetStartBtn.textContent = t(settings.lang, seq.playing ? 'stop' : 'start'); sheetStartBtn.classList.toggle('on', seq.playing); }
   if (!seq.playing) $('beat').querySelectorAll('i').forEach((i) => i.classList.remove('on'));
 }
 
-function fillSelect(sel, ch) {
-  const forDrums = ch === 9 || ch === 10;
-  sel.innerHTML = '';
-  for (const p of engine.programList(forDrums)) {
-    const o = document.createElement('option');
-    o.value = p.kind === 'sf2' ? `sf2:${p.bank}:${p.program}` : `synth:${p.name}`;
-    o.textContent = settings.lang === 'ar' ? p.label_ar : p.label;
-    sel.appendChild(o);
-  }
-  sel.value = engine.programKey(ch);
+function soundMeta(ch) {
+  const p = engine.programs[ch];
+  if (!p) return '';
+  if (p.kind === 'sf2') { const f = engine.fonts[p.font]; return `${f ? f.name : ''} · ${p.bank}:${p.program}`; }
+  if (p.kind === 'org') return t(settings.lang, 'setGroup');
+  return t(settings.lang, 'builtinRhythms');
 }
 
-function renderVoices() {
-  fillSelect($('upperSel'), CH.upper);
-  fillSelect($('lowerSel'), CH.lower);
+function renderSound() {
+  $('soundName').textContent = engine.programLabel(CH.upper, settings.lang) || '—';
+  $('soundMeta').textContent = soundMeta(CH.upper);
+  $('lowerName').textContent = engine.programLabel(CH.lower, settings.lang) || '—';
   $('lowerOnBtn').classList.toggle('on', settings.lowerOn);
   $('layerBtn').classList.toggle('on', settings.layer);
   const cm = $('chordModeBtn');
@@ -3208,34 +3686,57 @@ function renderMidi(list) {
   $('midiInfo').textContent = list.length ? list.map((d) => `${d.manufacturer} ${d.name}`.trim()).join(' · ') : (midi.supported ? t(settings.lang, 'midiNone') : t(settings.lang, 'midiUnsupported'));
 }
 
-function renderSettings() {
-  $('sf2Info').textContent = engine.hasSF2 ? `${engine.sf2.name} — ${engine.sf2.presets.length} presets` : t(settings.lang, 'noSF2');
-  $('sf2Remove').hidden = !engine.hasSF2;
-  $('styleRemove').hidden = !importedPack;
-  $('styRemove').hidden = !styFiles.length;
-  $('orgRemove').hidden = !orgSet;
-  if (orgSet && orgSet.parsed) {
-    const pr = orgSet.parsed;
-    $('orgInfo').textContent = `${orgSet.name} (v${pr.version}) — ${pr.instruments.length} ${t(settings.lang, 'instruments')}: ${pr.instruments.map((i) => i.name).join(', ')}` + (pr.rhythm ? ` · ${t(settings.lang, 'rhythmParts')}: ${pr.rhythm.parts.map((p) => p.name).join(', ') || '—'}` : '');
-  } else $('orgInfo').textContent = t(settings.lang, 'noOrg');
-  $('styInfo').textContent = styFiles.length ? styFiles.map((f) => f.name).join(', ') : t(settings.lang, 'noSty');
+function renderPartVoices() {
   const pv = $('partVoices');
   pv.innerHTML = '';
   for (const role of ['bass', 'chord', 'pad', 'phrase', 'drums', 'perc']) {
-    const label = document.createElement('label');
-    label.textContent = t(settings.lang, TRACK_LABEL[role]);
-    const sel = document.createElement('select');
-    fillSelect(sel, CH[role]);
-    sel.addEventListener('change', () => setChannelProgram(CH[role], sel.value));
-    label.appendChild(sel);
-    pv.appendChild(label);
+    const b = document.createElement('button');
+    b.className = 'pickbtn';
+    b.innerHTML = '<label></label><strong></strong>';
+    b.querySelector('label').textContent = t(settings.lang, TRACK_LABEL[role]);
+    b.querySelector('strong').textContent = engine.programLabel(CH[role], settings.lang) || '—';
+    b.addEventListener('click', () => openSoundList(CH[role]));
+    pv.appendChild(b);
   }
+}
+
+function renderSettings() {
+  const lang = settings.lang;
+  const sl = $('sf2List');
+  sl.innerHTML = '';
+  if (!engine.fonts.length) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = t(lang, 'noSF2'); sl.appendChild(p); }
+  engine.fonts.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'frow';
+    row.innerHTML = '<span></span><small></small><button class="chip" type="button">✕</button>';
+    row.querySelector('span').textContent = f.name;
+    row.querySelector('small').textContent = `${f.presets.length} ${t(lang, 'presets')}`;
+    const x = row.querySelector('button');
+    x.setAttribute('aria-label', t(lang, 'remove'));
+    x.addEventListener('click', () => removeSF2(i));
+    sl.appendChild(row);
+  });
+  if (orgSet && orgSet.parsed) {
+    const pr = orgSet.parsed;
+    $('orgInfo').textContent = `${orgSet.name} (v${pr.version}) — ${pr.instruments.length} ${t(lang, 'instruments')}: ${pr.instruments.map((i) => i.name).join(', ')}` + (pr.rhythm ? ` · ${t(lang, 'rhythmParts')}: ${pr.rhythm.parts.map((p) => p.name).join(', ') || '—'}` : '');
+  } else $('orgInfo').textContent = t(lang, 'noOrg');
+  $('orgRemove').hidden = !orgSet;
+  $('styleRemove').hidden = !importedPack;
+  $('styRemove').hidden = !styFiles.length;
+  if (styFiles.length) {
+    const folders = [...new Set(styFiles.map((f) => f.folder).filter(Boolean))];
+    $('styInfo').textContent = `${styFiles.length} ${t(lang, 'rhythmFiles')}` + (folders.length ? ` (${t(lang, 'fromFolder')} ${folders.join(', ')})` : '');
+  } else $('styInfo').textContent = t(lang, 'noSty');
+  const bb = $('builtinBtn');
+  bb.classList.toggle('on', !!settings.showBuiltin);
+  bb.textContent = t(lang, settings.showBuiltin ? 'showBuiltin' : 'hideBuiltin');
+  renderPartVoices();
   const tm = $('trackMutes');
   tm.innerHTML = '';
   for (const trackName of Object.keys(currentStyle().tracks)) {
     const b = document.createElement('button');
     b.className = 'btn tog' + (settings.mute[trackName] ? '' : ' on');
-    b.textContent = t(settings.lang, TRACK_LABEL[currentStyle().tracks[trackName].role] || trackName);
+    b.textContent = t(lang, TRACK_LABEL[currentStyle().tracks[trackName].role] || trackName);
     b.addEventListener('click', () => { settings.mute[trackName] = !settings.mute[trackName]; seq.mute = settings.mute; persist(); renderSettings(); });
     tm.appendChild(b);
   }

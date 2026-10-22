@@ -35,78 +35,101 @@
   </header>
 
   <main class="perf">
-    <section class="row rhythms">
-      <div class="grp"><label data-i18n="sudanese">Sudanese</label><div id="sudanChips" class="chips"></div></div>
-      <div class="grp"><label data-i18n="western">Western</label><div id="westChips" class="chips"></div></div>
-      <div class="grp" id="yamahaGrp" hidden><label data-i18n="yamahaGroup">Yamaha styles</label><div id="yamahaChips" class="chips"></div></div>
-      <div class="grp" id="orgGrp" hidden><label data-i18n="orgGroup">ORG 24 set</label><div id="orgChips" class="chips"></div></div>
-    </section>
+    <div class="panels">
+      <section class="row pick" id="rhythmRow">
+        <button class="btn nav" data-nav="style-" aria-label="Previous rhythm">‹</button>
+        <button class="pickbtn" id="rhythmBtn">
+          <label data-i18n="rhythm">Rhythm</label>
+          <strong id="rhythmName">—</strong>
+          <small id="rhythmMeta"></small>
+        </button>
+        <button class="btn nav" data-nav="style+" aria-label="Next rhythm">›</button>
+      </section>
 
-    <section class="row transport">
-      <button id="startBtn" class="btn start" data-i18n="start">START</button>
-      <div class="parts">
-        <button id="introBtn" class="btn part" data-i18n="intro">INTRO</button>
-        <button id="mainABtn" class="btn part" data-i18n="mainA">A</button>
-        <button id="mainBBtn" class="btn part" data-i18n="mainB">B</button>
-        <button id="fillBtn" class="btn part" data-i18n="fill">FILL</button>
-        <button id="endingBtn" class="btn part" data-i18n="ending">END</button>
-      </div>
-      <div class="tline">
+      <section class="row transport">
+        <div class="parts">
+          <button id="introBtn" class="btn part" data-i18n="intro">INTRO</button>
+          <button id="mainABtn" class="btn part" data-i18n="mainA">A</button>
+          <button id="mainBBtn" class="btn part" data-i18n="mainB">B</button>
+          <button id="fillBtn" class="btn part" data-i18n="fill">FILL</button>
+          <button id="endingBtn" class="btn part" data-i18n="ending">END</button>
+        </div>
+        <div class="tline">
+          <button id="startBtn" class="btn start"><span id="startLabel" data-i18n="start">START</span><span class="beat" id="beat"><i></i><i></i><i></i><i></i></span></button>
+          <div class="stat">
+            <label data-i18n="tempo">Tempo</label>
+            <div class="stepper"><button data-act="tempo-" class="btn sq">−</button><output id="tempoVal">120</output><button data-act="tempo+" class="btn sq">+</button></div>
+          </div>
+        </div>
+        <div class="togs">
+          <button id="syncBtn" class="btn tog small" data-i18n="sync">Start with first chord</button>
+          <button id="chordModeBtn" class="btn tog small" data-i18n="fingered">Full chords</button>
+        </div>
+      </section>
+
+      <section class="row pick" id="soundRow">
+        <button class="btn nav" data-nav="sound-" aria-label="Previous sound">‹</button>
+        <button class="pickbtn" id="soundBtn">
+          <label data-i18n="voice">Right-hand sound</label>
+          <strong id="soundName">—</strong>
+          <small id="soundMeta"></small>
+        </button>
+        <button class="btn nav" data-nav="sound+" aria-label="Next sound">›</button>
+      </section>
+
+      <section class="row hands">
+        <div class="stat chord-stat">
+          <label data-i18n="chord">Chord</label>
+          <output id="chordVal">—</output>
+        </div>
         <div class="stat">
-          <label data-i18n="tempo">Tempo</label>
-          <div class="stepper"><button data-act="tempo-" class="btn sq">−</button><output id="tempoVal">120</output><button data-act="tempo+" class="btn sq">+</button></div>
+          <label data-i18n="transpose">Transpose</label>
+          <div class="stepper"><button data-act="trans-" class="btn sq">−</button><output id="transVal">0</output><button data-act="trans+" class="btn sq">+</button></div>
         </div>
-        <div class="beat" id="beat"><i></i><i></i><i></i><i></i></div>
-        <button id="syncBtn" class="btn tog small" data-i18n="sync">Start with first chord</button>
-      </div>
-    </section>
+        <button id="moreBtn" class="btn tog small" data-i18n="more">More</button>
+      </section>
 
-    <section class="row hands">
-      <div class="voice">
-        <label data-i18n="voice">Right-hand sound</label>
-        <select id="upperSel"></select>
-      </div>
-      <div class="stat chord-stat">
-        <label data-i18n="chord">Chord</label>
-        <output id="chordVal">—</output>
-      </div>
-      <div class="stat">
-        <label data-i18n="transpose">Transpose</label>
-        <div class="stepper"><button data-act="trans-" class="btn sq">−</button><output id="transVal">0</output><button data-act="trans+" class="btn sq">+</button></div>
-      </div>
-      <button id="chordModeBtn" class="btn tog small" data-i18n="fingered">Full chords</button>
-    </section>
+      <section class="row more" id="more" hidden>
+        <div class="more-body">
+          <div class="stat">
+            <label data-i18n="split">Split point</label>
+            <div class="stepper"><button data-act="split-" class="btn sq">−</button><output id="splitVal">F#3</output><button data-act="split+" class="btn sq">+</button></div>
+          </div>
+          <button class="pickbtn wide" id="lowerBtn">
+            <label data-i18n="lower">Left-hand sound</label>
+            <strong id="lowerName">—</strong>
+          </button>
+          <button id="lowerOnBtn" class="btn tog" data-i18n="lowerOn">Left hand also sounds</button>
+          <button id="layerBtn" class="btn tog" data-i18n="layer">Layer two sounds</button>
+          <button id="panicBtn" class="btn tog" data-i18n="panic">All notes off</button>
+          <button id="keysToggle" class="btn tog" data-i18n="hideKeys">Hide keys</button>
+          <div class="regs">
+            <label data-i18n="registrations">Setups</label>
+            <div id="regBtns" class="regbtns"></div>
+            <small data-i18n="holdToSave">Tap a slot to load, hold it to save</small>
+          </div>
+        </div>
+      </section>
+    </div>
 
-    <details class="row more" id="more">
-      <summary data-i18n="more">More</summary>
-      <div class="more-body">
-        <div class="stat">
-          <label data-i18n="split">Split point</label>
-          <div class="stepper"><button data-act="split-" class="btn sq">−</button><output id="splitVal">F#3</output><button data-act="split+" class="btn sq">+</button></div>
-        </div>
-        <div class="voice">
-          <label data-i18n="lower">Left-hand sound</label>
-          <select id="lowerSel"></select>
-        </div>
-        <button id="lowerOnBtn" class="btn tog" data-i18n="lowerOn">Left hand also sounds</button>
-        <button id="layerBtn" class="btn tog" data-i18n="layer">Layer two sounds</button>
-        <button id="panicBtn" class="btn tog" data-i18n="panic">All notes off</button>
-        <button id="keysToggle" class="btn tog" data-i18n="hideKeys">Hide keys</button>
-        <div class="regs">
-          <label data-i18n="registrations">Setups</label>
-          <div id="regBtns" class="regbtns"></div>
-          <small data-i18n="holdToSave">Tap a slot to load, hold it to save</small>
-        </div>
-      </div>
-    </details>
-
-    <section class="row keys-row">
+    <section class="keys-row" id="keysRow">
       <div id="keyboard" class="keyboard"></div>
       <small class="hint" data-i18n="hint">Left of the red line: play a chord, the rhythm follows it. Right of it: melody.</small>
     </section>
   </main>
 
   <div id="toast" class="toast" hidden></div>
+
+  <dialog id="listSheet" class="sheet list">
+    <div class="sheet-head">
+      <h2 class="sheet-title"></h2>
+      <div class="sheet-actions"></div>
+      <button class="chip sheet-close" aria-label="Close">✕</button>
+    </div>
+    <div class="sheet-search"><input type="search" placeholder="" autocomplete="off" autocorrect="off" spellcheck="false"></div>
+    <div class="list-body" role="listbox"></div>
+    <p class="list-empty muted" hidden></p>
+  </dialog>
 
   <dialog id="installHelp" class="sheet small">
     <div class="sheet-head"><h2 data-i18n="installHelpTitle">Install Daloka as an app</h2><button id="closeInstallHelp" class="chip">✕</button></div>
@@ -122,21 +145,26 @@
       <button id="closeSettings" class="chip">✕</button>
     </div>
     <div class="sheet-body">
-      <h3 data-i18n="sounds">Sounds</h3>
-      <p id="sf2Info" class="muted" data-i18n="noSF2">Built-in sounds</p>
+      <h3 data-i18n="sounds">Sound banks</h3>
+      <p class="muted" data-i18n="sf2Help"></p>
+      <div id="sf2List" class="filelist"></div>
       <div class="actions">
-        <label class="btn file"><span data-i18n="importSF2">Import SF2</span><input id="sf2File" type="file" accept=".sf2,audio/x-soundfont,application/octet-stream"></label>
-        <button id="sf2Remove" class="btn" data-i18n="removeSF2">Remove sound bank</button>
+        <label class="btn file"><span data-i18n="importSF2">Add SF2 banks</span><input id="sf2File" type="file" multiple accept=".sf2,.SF2,audio/x-soundfont,application/octet-stream"></label>
+        <label class="btn file"><span data-i18n="importSF2Folder">Add a folder of banks</span><input id="sf2Folder" type="file" webkitdirectory multiple></label>
       </div>
+
+      <h3 data-i18n="partSounds">Sounds of the rhythm parts</h3>
       <div class="grid2" id="partVoices"></div>
 
-      <h3 data-i18n="styles">Styles</h3>
+      <h3 data-i18n="yamahaStyles">Your rhythms</h3>
+      <p class="muted" data-i18n="yamahaHelp"></p>
+      <p id="styInfo" class="muted"></p>
       <div class="actions">
-        <label class="btn file"><span data-i18n="importStyles">Import style pack</span><input id="styleFile" type="file" accept=".json,application/json"></label>
-        <button id="styleExport" class="btn" data-i18n="exportStyles">Export built-in styles</button>
-        <button id="styleRemove" class="btn" data-i18n="removeStyles">Remove imported styles</button>
+        <label class="btn file"><span data-i18n="importSty">Add rhythm files (.sty)</span><input id="styFile" type="file" multiple accept=".sty,.prs,.sst,.bcs,.pst,.set,.mid,application/octet-stream"></label>
+        <label class="btn file"><span data-i18n="importStyFolder">Add a folder of rhythms</span><input id="styFolder" type="file" webkitdirectory multiple></label>
+        <button id="styRemove" class="btn" data-i18n="removeSty">Remove all</button>
       </div>
-      <pre id="styleExportOut" class="export" hidden></pre>
+      <div class="actions"><button id="builtinBtn" class="btn tog on" data-i18n="showBuiltin">Show built-in rhythms</button></div>
 
       <h3 data-i18n="orgSet">ORG 24 set</h3>
       <p id="orgInfo" class="muted"></p>
@@ -144,14 +172,6 @@
       <div class="actions">
         <label class="btn file"><span data-i18n="importOrg">Import ORG 24 set (.set)</span><input id="orgFile" type="file" accept=".set,.Set,application/octet-stream"></label>
         <button id="orgRemove" class="btn" data-i18n="removeOrg">Remove set</button>
-      </div>
-
-      <h3 data-i18n="yamahaStyles">Yamaha styles</h3>
-      <p id="styInfo" class="muted"></p>
-      <p class="muted" data-i18n="yamahaHelp"></p>
-      <div class="actions">
-        <label class="btn file"><span data-i18n="importSty">Import styles (.sty / .set)</span><input id="styFile" type="file" multiple accept=".sty,.prs,.sst,.bcs,.pst,.set,.mid,application/octet-stream"></label>
-        <button id="styRemove" class="btn" data-i18n="removeSty">Remove Yamaha styles</button>
       </div>
 
       <h3 data-i18n="mixer">Mixer</h3>
@@ -163,6 +183,14 @@
       </div>
       <h3 data-i18n="tracks">Style tracks</h3>
       <div id="trackMutes" class="actions"></div>
+
+      <h3 data-i18n="styles">Style packs</h3>
+      <div class="actions">
+        <label class="btn file"><span data-i18n="importStyles">Import style pack</span><input id="styleFile" type="file" accept=".json,application/json"></label>
+        <button id="styleExport" class="btn" data-i18n="exportStyles">Export built-in styles</button>
+        <button id="styleRemove" class="btn" data-i18n="removeStyles">Remove imported styles</button>
+      </div>
+      <pre id="styleExportOut" class="export" hidden></pre>
 
       <h3 data-i18n="midi">MIDI</h3>
       <p id="midiInfo" class="muted"></p>

@@ -150,25 +150,52 @@ export class Synth {
   _drum(ch, note, vel, when) {
     const v = Math.max(0.1, vel / 127);
     const dest = this.routeFor(ch);
+    // The whole GM percussion map, so an imported Yamaha / ORG rhythm plays every stroke it has,
+    // not a generic tom for anything the Sudanese kit did not name.
     switch (note) {
+      case 35: return this._kick(dest, when, v, 120, 42, 0.5);         // acoustic bass drum
       case 36: return this._kick(dest, when, v, 150, 48, 0.45);        // kick / tum-tum deep drum
       case 38: return this._snare(dest, when, v);                      // snare
-      case 63: return this._membrane(dest, when, v, 215, 0.26, 0.35);  // daloka / bangaz dum
-      case 60: return this._tak(dest, when, v, 1500, 0.08);            // daloka / bangaz tak
-      case 64: return this._membrane(dest, when, v, 105, 0.42, 0.3);   // mambo (big bangaz)
-      case 41: return this._membrane(dest, when, v, 120, 0.35, 0.5);   // nugara / tabl low
-      case 48: return this._membrane(dest, when, v, 320, 0.18, 0.5);   // nugara / tabl high
-      case 45: return this._membrane(dest, when, v, 170, 0.3, 0.45);   // tom
+      case 40: return this._snare(dest, when, v * 0.9);                // electric snare
+      case 63: return this._membrane(dest, when, v, 215, 0.26, 0.35);  // daloka / bangaz dum (open high conga)
+      case 62: return this._membrane(dest, when, v * 0.8, 260, 0.12, 0.5);  // mute high conga
+      case 60: return this._tak(dest, when, v, 1500, 0.08);            // daloka / bangaz tak (high bongo)
+      case 61: return this._tak(dest, when, v, 1100, 0.1);             // low bongo
+      case 64: return this._membrane(dest, when, v, 105, 0.42, 0.3);   // mambo (low conga)
+      case 41: return this._membrane(dest, when, v, 120, 0.35, 0.5);   // nugara / tabl low (low floor tom)
+      case 43: return this._membrane(dest, when, v, 140, 0.33, 0.5);   // high floor tom
+      case 45: return this._membrane(dest, when, v, 170, 0.3, 0.45);   // low tom
+      case 47: return this._membrane(dest, when, v, 210, 0.26, 0.45);  // low-mid tom
+      case 48: return this._membrane(dest, when, v, 320, 0.18, 0.5);   // nugara / tabl high (hi-mid tom)
+      case 50: return this._membrane(dest, when, v, 380, 0.16, 0.5);   // high tom
+      case 65: return this._membrane(dest, when, v, 420, 0.14, 0.7);   // high timbale
+      case 66: return this._membrane(dest, when, v, 300, 0.18, 0.7);   // low timbale
       case 39: return this._clap(dest, when, v);
       case 70: return this._shaker(dest, when, v, 0.05, 8000);         // kashkoush / maracas
+      case 69: return this._shaker(dest, when, v, 0.08, 6500);         // cabasa
+      case 82: return this._shaker(dest, when, v, 0.1, 7500);          // shaker
       case 42: return this._shaker(dest, when, v, 0.06, 7000);         // closed hat
+      case 44: return this._shaker(dest, when, v * 0.7, 0.05, 7500);   // pedal hat
       case 46: return this._shaker(dest, when, v, 0.35, 6000);         // open hat
-      case 76: return this._tak(dest, when, v, 2300, 0.04);            // shatam sticks / wood block
+      case 51: return this._shaker(dest, when, v * 0.8, 0.6, 5000);    // ride
+      case 59: return this._shaker(dest, when, v * 0.8, 0.5, 5500);    // ride 2
+      case 53: return this._bell(dest, when, v * 0.7);                 // ride bell
+      case 76: return this._tak(dest, when, v, 2300, 0.04);            // shatam sticks / hi wood block
+      case 77: return this._tak(dest, when, v, 1700, 0.05);            // low wood block
+      case 75: return this._tak(dest, when, v, 2500, 0.03);            // claves
       case 54: return this._tambourine(dest, when, v);                 // riq
-      case 37: return this._tak(dest, when, v, 2600, 0.05);            // rim
-      case 56: return this._bell(dest, when, v);
+      case 37: return this._tak(dest, when, v, 2600, 0.05);            // rim / side stick
+      case 56: return this._bell(dest, when, v);                       // cowbell
+      case 67: return this._bell(dest, when, v * 0.8);                 // high agogo
+      case 68: return this._bell(dest, when, v * 0.7);                 // low agogo
+      case 80: return this._tak(dest, when, v * 0.6, 6000, 0.06);      // mute triangle
+      case 81: return this._shaker(dest, when, v * 0.6, 0.5, 9000);    // open triangle
       case 49: return this._shaker(dest, when, v, 1.2, 4000);          // crash
-      default: return this._membrane(dest, when, v, 180, 0.2, 0.4);
+      case 57: return this._shaker(dest, when, v, 1.0, 4500);          // crash 2
+      case 52: return this._shaker(dest, when, v, 0.9, 3500);          // china
+      case 55: return this._shaker(dest, when, v, 0.5, 5000);          // splash
+      case 73: case 74: return this._shaker(dest, when, v * 0.6, 0.12, 3000);  // guiro
+      default: return note < 60 ? this._membrane(dest, when, v, 180, 0.2, 0.4) : this._tak(dest, when, v, 1800, 0.06);
     }
   }
 

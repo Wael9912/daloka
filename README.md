@@ -6,6 +6,7 @@
 - **Arranger:** the left hand (below the split point) plays chords; drums, percussion, bass, chord and pad parts follow them.
 - **Sudanese set:** Tum Tum (6/8), Daloka · Sayra (4/4), Mardoum (6/8), Jarari (6/8), Karachi (2/4), Dalib, Haqiba — built from published descriptions of each rhythm (`docs/CONTENT.md` has the sources). **Western:** Pop, Rock, Ballad, Reggae, Slow 6/8. Each has intro, main A/B, fill, ending.
 - **Live controls:** start/stop, start-with-first-chord, fill, A/B, tempo (dotted-quarter display for 6/8), transpose, split point, eight saved setups.
+- **Two pickers, phone first:** *Rhythm* and *Right-hand sound* sit at the top of the screen with ‹ › arrows; tap the name for a full-screen list with search and group headers (your rhythm files first, grouped by folder; sounds grouped by bank and family). Picking keeps the list open so you can go through several; the rhythm list has its own START. The keys stay pinned to the bottom.
 - **Stays up on stage:** the screen stays on while the app is open (Wake Lock), the sequencer clock runs in a Worker so Chrome's timer throttling cannot stall a bar, and audio/MIDI/wake lock re-arm when you switch back to the app.
 - **Open content:** import an **ORG 24 set (`.set`)** for its sampled Sudanese instruments and its rhythm, your own `.sf2` banks, style packs (`.json`) and **Yamaha style files** (`.sty` / `.prs` / `.sst` from any PSR / Tyros / Genos, SFF1 or SFF2); export the built-in styles to edit them.
 - **Arabic (RTL) and English.**
@@ -38,11 +39,11 @@ Without a keyboard the on-screen keys work everywhere (touch, multi-finger). On 
 
 ## Yamaha styles
 
-⚙ → *Import Yamaha styles* takes any number of `.sty` files (copy them to the phone first). Each gives a style with Intro, Main A/B, Fill, Ending; a style with Main C/D also gives a second "(C/D)" entry. The CASM section decides how each part follows your chord. ORG 24 `.Set` files and Korg Pa `.STY` files are closed formats and cannot be imported (`docs/CONTENT.md`).
+⚙ → *Add rhythm files* takes any number of `.sty` files, and *Add a folder of rhythms* a whole folder (copy them to the phone first; files that are not styles are skipped). Each gives a rhythm with Intro, Main A/B, Fill, Ending; a style with Main C/D also gives a second "(C/D)" entry. The CASM section decides how each part follows your chord. Your files come first in the rhythm list, one group per folder; the built-in sets can be hidden with *Show built-in rhythms*. Korg Pa `.STY` files are a closed format and cannot be imported (`docs/CONTENT.md`).
 
 ## Sound banks
 
-The app ships with a synth so it plays out of the box. For sampled instruments, open ⚙ → *Import SF2 sound bank* and pick any SoundFont 2 file (for example the free GeneralUser GS). It is stored in the browser (IndexedDB) and loaded on every start. Style voices then prefer the GM programs of the bank (oud → 24 nylon guitar, tambour → 105 banjo, accordion → 21, strings → 48, brass → 61, sax → 65, bass → 33, drums → bank 128).
+The app ships with a synth so it plays out of the box. For sampled instruments, open ⚙ → *Add SF2 banks* (or *Add a folder of banks*) and pick any SoundFont 2 files (for example the free GeneralUser GS, plus any single-instrument banks). All of them are stored in the browser (IndexedDB), loaded on every start, and listed under Settings with a remove button. Every bank's presets appear in the sound lists, grouped by bank and GM family. Style voices prefer the first bank that has the GM program (oud → 24 nylon guitar, tambour → 105 banjo, accordion → 21, strings → 48, brass → 61, sax → 65, bass → 33); drums take the first bank with a kit (bank 128).
 
 A Sudanese bank `daloka-sudan.sf2` (daloka, tabl, tum-tum, claps, oud, tambour, Sudanese lead) is the main non-code task; see `docs/CONTENT.md`.
 
@@ -73,7 +74,7 @@ node tools/style_lint.mjs my-pack.json
 node tests/run.mjs    # engine tests: chord detection ×12 keys, DSL, the Sudanese set's metres and strokes, sequencer, 10,000-bar drift
 ```
 
-Files: `index.html`, `css/app.css`, `js/` (`app.js` UI · `engine.js` routing · `synth.js` built-in sounds · `sf2.js` SoundFont loader · `sequencer.js` · `chord.js` · `styledsl.js` · `styles.js` · `midi.js` · `audio.js` · `store.js` · `i18n.js`), `sw.js` + `manifest.webmanifest` (PWA).
+Files: `index.html`, `css/app.css`, `js/` (`app.js` UI · `sheet.js` the list sheet · `catalog.js` list order, grouping, search · `engine.js` routing over the loaded banks · `synth.js` built-in sounds · `sf2.js` SoundFont loader · `sty.js` Yamaha styles · `orgset.js` + `orgsampler.js` ORG 24 sets · `sequencer.js` · `chord.js` · `styledsl.js` · `styles.js` · `midi.js` · `audio.js` · `store.js` · `i18n.js`), `sw.js` + `manifest.webmanifest` (PWA).
 
 Latency: Chrome on Android with `latencyHint: 'interactive'` gives roughly 20–40 ms key-to-sound on a mid-range phone, worse on cheap phones. A native app (the original plan, `docs/PLAN.md`) is the path to under 20 ms if that ever matters more than zero-install.
 

@@ -5,6 +5,7 @@ import { STYLE_PACK } from '../js/styles.js';
 import { Sequencer } from '../js/sequencer.js';
 import { parseSMF, parseCASM, convertStyle } from '../js/sty.js';
 import { parseOrgSet, orgStyles, assignInstruments, isOrgSet } from '../js/orgset.js';
+import { orderStyles, stepStyle, styleGroups, soundGroups, flatKeys, filterGroups, gmFamily } from '../js/catalog.js';
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) pass++; else { fail++; console.log('FAIL', msg); } };
@@ -282,6 +283,41 @@ function makeSet() {
   ok(played.some((e) => e.ch === 9 && e.n === 36), 'org: kick plays unchanged on the drum channel');
   let threw = false; try { parseOrgSet(new Uint8Array([77, 84, 104, 100])); } catch (_) { threw = true; }
   ok(threw, 'org: a non-set is refused');
+}
+
+// ── the pickers: order, grouping, search, stepping ──
+{
+  const mk = (id, group, extra = {}) => ({ id, name: id.toUpperCase(), name_ar: id, group, meter: [4, 4], tempo: 100, ...extra });
+  const list = [mk('pop', 'west'), mk('tumtum', 'sudan', { meter: [6, 8], tempo: 156 }), mk('b', 'yamaha', { folder: 'Sudan' }), mk('loose', 'yamaha'), mk('a', 'yamaha', { folder: 'Sudan' }), mk('z', 'yamaha', { folder: 'Arabic' }), mk('set', 'org')];
+  const ordered = orderStyles(list);
+  eq(ordered.map((s) => s.id), ['z', 'a', 'b', 'loose', 'set', 'tumtum', 'pop'], 'picker: own files first (folders by name, then loose files), set, Sudanese, Western');
+  eq(orderStyles(list, { showBuiltin: false }).map((s) => s.id), ['z', 'a', 'b', 'loose', 'set'], 'picker: built-ins can be hidden');
+  eq(orderStyles([mk('s10', 'yamaha'), mk('s2', 'yamaha')]).map((s) => s.id), ['s2', 's10'], 'picker: numeric-aware name order');
+  eq(stepStyle(ordered, 'pop', 1).id, 'z', 'picker: next wraps to the first');
+  eq(stepStyle(ordered, 'z', -1).id, 'pop', 'picker: previous wraps to the last');
+  eq(stepStyle(ordered, 'missing', 1).id, 'z', 'picker: an unknown id steps to the first');
+  eq(stepStyle([], 'x', 1), null, 'picker: empty list → null');
+  const groups = styleGroups(ordered, { labels: { yamaha: 'Yours', sudan: 'Sudanese', west: 'Western', org: 'Set' } });
+  eq(groups.map((g) => [g.title, g.items.length]), [['Arabic', 1], ['Sudan', 2], ['Yours', 1], ['Set', 1], ['Sudanese', 1], ['Western', 1]], 'picker: a group per folder when there is more than one folder; loose files under the plain group');
+  eq(groups[4].items[0].meta, '6/8 · ♩. 104', 'picker: 6/8 shows the dotted-quarter tempo');
+  const one = styleGroups(orderStyles(list.filter((s) => s.folder !== 'Arabic' && s.id !== 'loose')), { labels: { yamaha: 'Yours' } });
+  eq(one[0].title, 'Yours', 'picker: one folder → the plain "your rhythms" group');
+  eq(filterGroups(groups, 'TUM').map((g) => g.title), ['Sudanese'], 'picker: search is case-insensitive over the label');
+  eq(filterGroups(groups, 'sudan').map((g) => g.items.length), [2, 1], 'picker: a hit on the group title keeps the whole group');
+  eq(filterGroups(groups, '  ').length, 6, 'picker: blank query keeps everything');
+  eq(filterGroups(groups, 'nothing-here'), [], 'picker: no match → no groups');
+  const progs = [
+    { kind: 'synth', name: 'lead', key: 'synth:lead', label: 'Synth lead', label_ar: 'ليد' },
+    { kind: 'sf2', font: 0, fontName: 'GM', bank: 0, program: 0, key: 'sf2:0:0:0', label: 'Piano', label_ar: 'Piano' },
+    { kind: 'sf2', font: 0, fontName: 'GM', bank: 0, program: 24, key: 'sf2:0:0:24', label: 'Nylon', label_ar: 'Nylon' },
+    { kind: 'sf2', font: 0, fontName: 'GM', bank: 8, program: 24, key: 'sf2:0:8:24', label: 'Ukulele', label_ar: 'Ukulele' },
+    { kind: 'sf2', font: 1, fontName: 'Oud', bank: 0, program: 25, key: 'sf2:1:0:25', label: 'Oud', label_ar: 'Oud' },
+    { kind: 'org', index: 2, key: 'org:2', label: 'Saz', label_ar: 'Saz' },
+  ];
+  const sg = soundGroups(progs, { labels: { bank: 'Bank', org: 'Set', synth: 'Built-in' } });
+  eq(sg.map((g) => g.title), ['GM · Piano', 'GM · Guitar', 'GM · Bank 8', 'Oud · Guitar', 'Set', 'Built-in'], 'picker: sounds grouped by bank file and GM family, built-ins last');
+  eq(flatKeys(sg), ['sf2:0:0:0', 'sf2:0:0:24', 'sf2:0:8:24', 'sf2:1:0:25', 'org:2', 'synth:lead'], 'picker: flat key order for the arrows');
+  eq(gmFamily(0), 'Piano', 'gm family 0'); eq(gmFamily(127), 'Sound effects', 'gm family 127'); eq(gmFamily(105, 'ar'), 'آلات شرقية', 'gm family in Arabic');
 }
 
 console.log(`${pass} passed, ${fail} failed`);
